@@ -48,12 +48,19 @@ func main() {
 	ledger := ledgerp2p.NewCluster(priv, replicas)
 	log.Printf("gateway: ledger cluster ready (anchor + %d replicas, signed)", replicas)
 
+	// DePIN reward economics (ADR-0013): reward per replicated entry stays below the
+	// cloud cost it avoids, so payouts are funded by real savings with a company margin.
+	depin := httpapi.DepinConfig{
+		RewardPerEntryMinor:    int64(envInt("DEPIN_REWARD_PER_ENTRY_MINOR", 5)),
+		CloudCostPerEntryMinor: int64(envInt("DEPIN_CLOUD_COST_PER_ENTRY_MINOR", 12)),
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok","service":"gateway"}`))
 	})
-	httpapi.New(wallet, ledger).Routes(mux)
+	httpapi.New(wallet, ledger, depin).Routes(mux)
 
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 

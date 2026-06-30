@@ -72,7 +72,7 @@ func TestAddReplicaBackfills(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		c.AppendPayment("u", 100, nil, "m", "t") //nolint:errcheck
 	}
-	c.AddReplica()
+	c.AddReplica("")
 	if err := c.Verify(); err != nil {
 		t.Fatalf("verify after add: %v", err)
 	}

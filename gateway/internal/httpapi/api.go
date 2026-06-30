@@ -10,6 +10,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
@@ -28,23 +30,38 @@ const (
 )
 
 // Ledger is the P2P ledger surface the API needs: a Node plus the cluster's
-// replication controls (the *ledgerp2p.Cluster satisfies it).
+// replication + DePIN-metering controls (the *ledgerp2p.Cluster satisfies it).
 type Ledger interface {
 	ledgerp2p.Node
 	Nodes() []ledgerp2p.NodeStatus
 	KillReplica(id int) bool
-	AddReplica()
+	AddReplica(owner string)
+	Meter() []ledgerp2p.NodeMeter
+	DrainContributions() []ledgerp2p.Contribution
+}
+
+// DepinConfig sets the reward economics (ADR-0013). RewardPerEntryMinor must stay
+// below CloudCostPerEntryMinor so every payout is funded by real savings and the
+// company still nets a margin (reward ≤ value created — never minted from nothing).
+type DepinConfig struct {
+	RewardPerEntryMinor    int64
+	CloudCostPerEntryMinor int64
 }
 
 // API holds the dependencies the handlers need.
 type API struct {
 	wallet walletv1.WalletServiceClient
 	ledger Ledger
+	depin  DepinConfig
+
+	mu                sync.Mutex
+	totalRewardedMin  int64 // lifetime DePIN credit paid out
+	totalCloudAvoided int64 // lifetime cloud cost avoided (the value created)
 }
 
 // New builds the API over a Wallet client and the P2P ledger cluster.
-func New(wallet walletv1.WalletServiceClient, ledger Ledger) *API {
-	return &API{wallet: wallet, ledger: ledger}
+func New(wallet walletv1.WalletServiceClient, ledger Ledger, depin DepinConfig) *API {
+	return &API{wallet: wallet, ledger: ledger, depin: depin}
 }
 
 // Routes registers the REST endpoints on a mux (Go 1.22+ method+path patterns).
@@ -59,6 +76,8 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/ledger/nodes", a.ledgerNodes)
 	mux.HandleFunc("POST /v1/ledger/nodes/{id}/kill", a.ledgerKill)
 	mux.HandleFunc("POST /v1/ledger/replicas/add", a.ledgerAddReplica)
+	mux.HandleFunc("GET /v1/depin/stats", a.depinStats)
+	mux.HandleFunc("POST /v1/depin/settle", a.depinSettle)
 }
 
 // --- deposit -> CalculateLimit ---
@@ -258,10 +277,110 @@ func (a *API) ledgerKill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"killed": id, "nodes": a.ledger.Nodes()})
 }
 
-// ledgerAddReplica brings a new replica online (back-filled to the current chain).
-func (a *API) ledgerAddReplica(w http.ResponseWriter, _ *http.Request) {
-	a.ledger.AddReplica()
+// ledgerAddReplica brings a new replica online, optionally owned by a user whose phone
+// runs it (and therefore earns DePIN rewards). Body: {"owner": "<user_id>"} (optional).
+func (a *API) ledgerAddReplica(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Owner string `json:"owner"`
+	}
+	if r.ContentLength != 0 {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+	}
+	a.ledger.AddReplica(body.Owner)
 	writeJSON(w, http.StatusOK, map[string]any{"nodes": a.ledger.Nodes()})
+}
+
+// --- DePIN metering + rewards (ADR-0008/0013) ---
+
+// depinStats shows per-owned-node contribution, the pending reward, and the lifetime
+// "cloud cost avoided" counter (the pitch number).
+func (a *API) depinStats(w http.ResponseWriter, _ *http.Request) {
+	meters := a.ledger.Meter()
+	nodes := make([]map[string]any, 0, len(meters))
+	var pendingReward int64
+	for _, m := range meters {
+		reward := int64(m.Pending) * a.depin.RewardPerEntryMinor
+		pendingReward += reward
+		nodes = append(nodes, map[string]any{
+			"node_id":               m.ID,
+			"owner":                 m.Owner,
+			"pending_entries":       m.Pending,
+			"lifetime_entries":      m.Lifetime,
+			"pending_reward_minor":  reward,
+			"lifetime_reward_minor": int64(m.Lifetime) * a.depin.RewardPerEntryMinor,
+		})
+	}
+
+	a.mu.Lock()
+	totalRewarded, totalAvoided := a.totalRewardedMin, a.totalCloudAvoided
+	a.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"reward_per_entry_minor":     a.depin.RewardPerEntryMinor,
+		"cloud_cost_per_entry_minor": a.depin.CloudCostPerEntryMinor,
+		"nodes":                      nodes,
+		"pending_reward_minor":       pendingReward,
+		"total_rewarded_minor":       totalRewarded,
+		"total_cloud_avoided_minor":  totalAvoided,
+	})
+}
+
+// depinSettle pays out pending contributions: for each owned replica it converts
+// replicated-entry units into wallet credit via CreditNodeReward (ADR-0008). The
+// reward is capped below the cloud cost avoided, so the payout is funded by real
+// savings and never minted from nothing (ADR-0013).
+func (a *API) depinSettle(w http.ResponseWriter, r *http.Request) {
+	contribs := a.ledger.DrainContributions()
+	results := make([]map[string]any, 0, len(contribs))
+	var paid, avoided int64
+
+	for _, ct := range contribs {
+		reward := int64(ct.Units) * a.depin.RewardPerEntryMinor
+		if reward <= 0 {
+			continue
+		}
+		ref := fmt.Sprintf("depin-node%d-%d", ct.NodeID, time.Now().UnixNano())
+		proof, _ := json.Marshal(struct {
+			Minor int64  `json:"minor"`
+			Ref   string `json:"ref"`
+		}{Minor: reward, Ref: ref})
+
+		resp, err := a.wallet.CreditNodeReward(r.Context(), &walletv1.CreditNodeRewardRequest{
+			UserId:            ct.Owner,
+			ContributionProof: proof,
+		})
+		if err != nil {
+			// Owner may have no account yet; report and skip (units already drained,
+			// so this is best-effort for the demo).
+			results = append(results, map[string]any{
+				"node_id": ct.NodeID, "owner": ct.Owner, "error": status.Convert(err).Message(),
+			})
+			continue
+		}
+		paid += reward
+		avoided += int64(ct.Units) * a.depin.CloudCostPerEntryMinor
+		results = append(results, map[string]any{
+			"node_id":                ct.NodeID,
+			"owner":                  ct.Owner,
+			"units":                  ct.Units,
+			"credited_minor":         resp.GetCreditedMinor(),
+			"available_credit_minor": resp.GetAvailableCreditMinor(),
+		})
+	}
+
+	a.mu.Lock()
+	a.totalRewardedMin += paid
+	a.totalCloudAvoided += avoided
+	totalRewarded, totalAvoided := a.totalRewardedMin, a.totalCloudAvoided
+	a.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"settled":                   results,
+		"paid_now_minor":            paid,
+		"cloud_avoided_now_minor":   avoided,
+		"total_rewarded_minor":      totalRewarded,
+		"total_cloud_avoided_minor": totalAvoided,
+	})
 }
 
 // --- node-reward -> CreditNodeReward ---

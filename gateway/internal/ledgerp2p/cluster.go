@@ -21,27 +21,36 @@ type Cluster struct {
 }
 
 type replica struct {
-	id   int
-	node Node
+	id    int
+	owner string // user_id whose phone runs this node; "" = unowned infra node
+	node  Node
+	// pending = entries replicated since the last DePIN settle (the contribution to
+	// be rewarded); lifetime = entries ever replicated (for the dashboard).
+	pending  int
+	lifetime int
 }
 
-// NewCluster builds a cluster: an anchor signing with priv and replicaCount replicas.
+// NewCluster builds a cluster: an anchor signing with priv and replicaCount unowned
+// infra replicas. Owned (user phone) replicas are added later via AddReplica.
 func NewCluster(priv ed25519.PrivateKey, replicaCount int) *Cluster {
 	anchor := NewMemNode(priv)
 	c := &Cluster{anchor: anchor}
 	for i := 0; i < replicaCount; i++ {
-		c.addReplica()
+		c.addReplica("")
 	}
 	return c
 }
 
-// addReplica registers a fresh replica and back-fills it with the current chain so it
-// is immediately in sync. Caller holds c.mu, or it is called pre-publication.
-func (c *Cluster) addReplica() {
-	r := &replica{id: c.nextID, node: NewReplica(c.anchor.PublicKey())}
+// addReplica registers a fresh replica owned by owner ("" = unowned) and back-fills it
+// with the current chain so it is immediately in sync. Back-filled entries count as
+// lifetime contribution but not pending (a node is rewarded for live replication, not
+// for catching up). Caller holds c.mu, or it is called pre-publication.
+func (c *Cluster) addReplica(owner string) {
+	r := &replica{id: c.nextID, owner: owner, node: NewReplica(c.anchor.PublicKey())}
 	c.nextID++
 	for _, e := range c.anchor.Entries() {
 		_ = r.node.Receive(e) // fresh replica, chain is valid by construction
+		r.lifetime++
 	}
 	c.replicas = append(c.replicas, r)
 }
@@ -58,7 +67,10 @@ func (c *Cluster) AppendPayment(userID string, amountMinor int64, items []string
 		return Entry{}, err
 	}
 	for _, r := range c.replicas {
-		_ = r.node.Receive(e)
+		if err := r.node.Receive(e); err == nil {
+			r.pending++ // metered contribution: this node replicated a live entry
+			r.lifetime++
+		}
 	}
 	return e, nil
 }
@@ -104,6 +116,7 @@ func (c *Cluster) PublicKey() ed25519.PublicKey { return c.anchor.PublicKey() }
 // NodeStatus is a per-node view for the replication dashboard.
 type NodeStatus struct {
 	ID       int    `json:"id"`
+	Owner    string `json:"owner,omitempty"`
 	Role     string `json:"role"` // "anchor" | "replica"
 	Length   int    `json:"length"`
 	InSync   bool   `json:"in_sync"`
@@ -126,11 +139,59 @@ func (c *Cluster) Nodes() []NodeStatus {
 	for _, r := range c.replicas {
 		out = append(out, NodeStatus{
 			ID:       r.id,
+			Owner:    r.owner,
 			Role:     "replica",
 			Length:   r.node.Len(),
 			InSync:   r.node.Len() == want,
 			Verified: r.node.Verify() == nil,
 		})
+	}
+	return out
+}
+
+// NodeMeter is a per-node contribution view for the DePIN dashboard.
+type NodeMeter struct {
+	ID       int    `json:"id"`
+	Owner    string `json:"owner"`
+	Pending  int    `json:"pending"`  // entries replicated since last settle (rewardable)
+	Lifetime int    `json:"lifetime"` // entries ever replicated
+}
+
+// Meter reports per-replica contribution (owned replicas only — unowned infra nodes
+// earn nothing).
+func (c *Cluster) Meter() []NodeMeter {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]NodeMeter, 0, len(c.replicas))
+	for _, r := range c.replicas {
+		if r.owner == "" {
+			continue
+		}
+		out = append(out, NodeMeter{ID: r.id, Owner: r.owner, Pending: r.pending, Lifetime: r.lifetime})
+	}
+	return out
+}
+
+// Contribution is one node's rewardable work, drained for settlement.
+type Contribution struct {
+	NodeID int
+	Owner  string
+	Units  int // entries replicated since the last drain
+}
+
+// DrainContributions returns and zeroes the pending contribution of every owned
+// replica that has done rewardable work since the last drain. Resetting here means a
+// node is paid once per unit of work (no double-pay).
+func (c *Cluster) DrainContributions() []Contribution {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var out []Contribution
+	for _, r := range c.replicas {
+		if r.owner == "" || r.pending == 0 {
+			continue
+		}
+		out = append(out, Contribution{NodeID: r.id, Owner: r.owner, Units: r.pending})
+		r.pending = 0
 	}
 	return out
 }
@@ -149,11 +210,12 @@ func (c *Cluster) KillReplica(id int) bool {
 	return false
 }
 
-// AddReplica brings a new replica online (back-filled to the current chain).
-func (c *Cluster) AddReplica() {
+// AddReplica brings a new replica online for owner ("" = unowned infra), back-filled
+// to the current chain.
+func (c *Cluster) AddReplica(owner string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.addReplica()
+	c.addReplica(owner)
 }
 
 // compile-time check: a Cluster is usable anywhere a Node is.
