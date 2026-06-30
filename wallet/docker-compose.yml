@@ -1,0 +1,27 @@
+# Local Postgres for the wallet ledger. Real DB so the FOR UPDATE atomic-deduct
+# (the core safety invariant) is exercised exactly as in production.
+#
+#   docker compose up -d        # start Postgres
+#   docker compose down -v       # stop + wipe data
+#
+# The wallet service connects with WALLET_DSN (default points here).
+services:
+  postgres:
+    image: postgres:16
+    container_name: kotn-wallet-pg
+    environment:
+      POSTGRES_USER: kotn
+      POSTGRES_PASSWORD: kotn
+      POSTGRES_DB: kotn_wallet
+    ports:
+      - "5440:5432" # 5440 on host — native Postgres instances already hold 5432/5433
+    volumes:
+      - wallet_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kotn -d kotn_wallet"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  wallet_pgdata:
