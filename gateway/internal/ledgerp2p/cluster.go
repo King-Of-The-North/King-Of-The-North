@@ -172,28 +172,23 @@ func (c *Cluster) Meter() []NodeMeter {
 	return out
 }
 
-// Contribution is one node's rewardable work, drained for settlement.
-type Contribution struct {
-	NodeID int
-	Owner  string
-	Units  int // entries replicated since the last drain
-}
-
-// DrainContributions returns and zeroes the pending contribution of every owned
-// replica that has done rewardable work since the last drain. Resetting here means a
-// node is paid once per unit of work (no double-pay).
-func (c *Cluster) DrainContributions() []Contribution {
+// ClearPending subtracts up to units from a replica's pending meter, called only
+// AFTER that contribution has been successfully credited. Subtracting (rather than
+// zeroing) preserves any contribution that accrued during settlement, and not calling
+// it on a failed credit leaves the units pending to be retried — so a reward is never
+// lost or double-paid. No-op if the node is gone.
+func (c *Cluster) ClearPending(id, units int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var out []Contribution
 	for _, r := range c.replicas {
-		if r.owner == "" || r.pending == 0 {
-			continue
+		if r.id == id {
+			if units > r.pending {
+				units = r.pending
+			}
+			r.pending -= units
+			return
 		}
-		out = append(out, Contribution{NodeID: r.id, Owner: r.owner, Units: r.pending})
-		r.pending = 0
 	}
-	return out
 }
 
 // KillReplica removes a replica by id, modelling a phone going offline. Returns false

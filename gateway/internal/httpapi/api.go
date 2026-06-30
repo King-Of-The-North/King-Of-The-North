@@ -37,7 +37,7 @@ type Ledger interface {
 	KillReplica(id int) bool
 	AddReplica(owner string)
 	Meter() []ledgerp2p.NodeMeter
-	DrainContributions() []ledgerp2p.Contribution
+	ClearPending(id, units int)
 }
 
 // DepinConfig sets the reward economics (ADR-0013). RewardPerEntryMinor must stay
@@ -284,7 +284,10 @@ func (a *API) ledgerAddReplica(w http.ResponseWriter, r *http.Request) {
 		Owner string `json:"owner"`
 	}
 	if r.ContentLength != 0 {
-		_ = json.NewDecoder(r.Body).Decode(&body)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON: " + err.Error()})
+			return
+		}
 	}
 	a.ledger.AddReplica(body.Owner)
 	writeJSON(w, http.StatusOK, map[string]any{"nodes": a.ledger.Nodes()})
@@ -330,39 +333,43 @@ func (a *API) depinStats(w http.ResponseWriter, _ *http.Request) {
 // reward is capped below the cloud cost avoided, so the payout is funded by real
 // savings and never minted from nothing (ADR-0013).
 func (a *API) depinSettle(w http.ResponseWriter, r *http.Request) {
-	contribs := a.ledger.DrainContributions()
-	results := make([]map[string]any, 0, len(contribs))
+	meters := a.ledger.Meter()
+	results := make([]map[string]any, 0, len(meters))
 	var paid, avoided int64
 
-	for _, ct := range contribs {
-		reward := int64(ct.Units) * a.depin.RewardPerEntryMinor
+	for _, m := range meters {
+		units := m.Pending
+		reward := int64(units) * a.depin.RewardPerEntryMinor
 		if reward <= 0 {
 			continue
 		}
-		ref := fmt.Sprintf("depin-node%d-%d", ct.NodeID, time.Now().UnixNano())
+		ref := fmt.Sprintf("depin-node%d-%d", m.ID, time.Now().UnixNano())
 		proof, _ := json.Marshal(struct {
 			Minor int64  `json:"minor"`
 			Ref   string `json:"ref"`
 		}{Minor: reward, Ref: ref})
 
 		resp, err := a.wallet.CreditNodeReward(r.Context(), &walletv1.CreditNodeRewardRequest{
-			UserId:            ct.Owner,
+			UserId:            m.Owner,
 			ContributionProof: proof,
 		})
 		if err != nil {
-			// Owner may have no account yet; report and skip (units already drained,
-			// so this is best-effort for the demo).
+			// Credit failed (e.g. owner has no account yet) — leave the units pending
+			// so a later settle retries them. Nothing is cleared, nothing is lost.
 			results = append(results, map[string]any{
-				"node_id": ct.NodeID, "owner": ct.Owner, "error": status.Convert(err).Message(),
+				"node_id": m.ID, "owner": m.Owner, "error": status.Convert(err).Message(),
 			})
 			continue
 		}
+		// Clear only the units we just credited (subtract, don't zero) so contributions
+		// that accrued during the wallet call survive for the next settle.
+		a.ledger.ClearPending(m.ID, units)
 		paid += reward
-		avoided += int64(ct.Units) * a.depin.CloudCostPerEntryMinor
+		avoided += int64(units) * a.depin.CloudCostPerEntryMinor
 		results = append(results, map[string]any{
-			"node_id":                ct.NodeID,
-			"owner":                  ct.Owner,
-			"units":                  ct.Units,
+			"node_id":                m.ID,
+			"owner":                  m.Owner,
+			"units":                  units,
 			"credited_minor":         resp.GetCreditedMinor(),
 			"available_credit_minor": resp.GetAvailableCreditMinor(),
 		})

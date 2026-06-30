@@ -83,6 +83,34 @@ func TestAddReplicaBackfills(t *testing.T) {
 	}
 }
 
+// TestClearPendingSubtractsAndClamps: ClearPending subtracts only the credited units
+// (preserving contribution accrued during settlement) and never goes negative.
+func TestClearPendingSubtractsAndClamps(t *testing.T) {
+	c := newCluster(t, 0)
+	c.AddReplica("owner-1")
+	id := c.Nodes()[1].ID // first replica
+
+	for i := 0; i < 3; i++ {
+		c.AppendPayment("u", 100, nil, "m", "t") //nolint:errcheck
+	}
+	if c.Meter()[0].Pending != 3 {
+		t.Fatalf("want pending 3, got %d", c.Meter()[0].Pending)
+	}
+
+	// Credit 2 units; a 3rd pay lands "during" settlement. Pending must end at 2, not 0.
+	c.ClearPending(id, 2)
+	c.AppendPayment("u", 100, nil, "m", "t") //nolint:errcheck
+	if got := c.Meter()[0].Pending; got != 2 {
+		t.Fatalf("want pending 2 after clear(2)+1 pay, got %d", got)
+	}
+
+	// Over-clear must clamp to 0, never negative.
+	c.ClearPending(id, 999)
+	if got := c.Meter()[0].Pending; got != 0 {
+		t.Fatalf("want pending 0 after over-clear, got %d", got)
+	}
+}
+
 // TestReplicaCannotAuthor: a verify-only replica refuses to sign new entries.
 func TestReplicaCannotAuthor(t *testing.T) {
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
