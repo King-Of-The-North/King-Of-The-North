@@ -1,5 +1,10 @@
-# Local stack (hybrid model): Compose runs Postgres + backend services; the JS app you
-# are actively editing runs natively (pnpm/Expo). See Taskfile.yml and CONTRIBUTING.md.
+# Local backend stack. One command brings up Postgres + wallet + gateway:
+#
+#   docker compose up --build
+#
+# Then the REST API is on http://localhost:8080 (gateway) and the app you are
+# actively editing (Expo / Next.js) runs natively and points at it.
+# Host Postgres port is 5440 to avoid clashing with a native Postgres on 5432.
 name: kotn
 
 services:
@@ -10,11 +15,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kotn}
       POSTGRES_DB: ${POSTGRES_DB:-kotn}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5440}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Applied once on a fresh volume — bootstraps the wallet ledger schema.
-      - ./wallet/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kotn} -d ${POSTGRES_DB:-kotn}"]
       interval: 5s
@@ -26,11 +29,13 @@ services:
       context: .
       dockerfile: wallet/Dockerfile
     environment:
+      WALLET_GRPC_PORT: "9091"
       WALLET_HTTP_PORT: "8081"
-      DATABASE_URL: postgres://${POSTGRES_USER:-kotn}:${POSTGRES_PASSWORD:-kotn}@postgres:5432/${POSTGRES_DB:-kotn}?sslmode=disable
-      MOKA_MOCK: ${MOKA_MOCK:-true}
+      # Service-to-service: reach Postgres by its compose name on the internal network.
+      WALLET_DSN: postgres://${POSTGRES_USER:-kotn}:${POSTGRES_PASSWORD:-kotn}@postgres:5432/${POSTGRES_DB:-kotn}?sslmode=disable
     ports:
-      - "8081:8081"
+      - "9091:9091" # gRPC (gateway → wallet)
+      - "8081:8081" # /healthz
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,17 +46,19 @@ services:
       dockerfile: gateway/Dockerfile
     environment:
       GATEWAY_HTTP_PORT: "8080"
-      WALLET_ADDR: wallet:8081
+      WALLET_GRPC_ADDR: wallet:9091
     ports:
-      - "8080:8080"
+      - "8080:8080" # REST ingress (the apps call this)
     depends_on:
       - wallet
 
-  ai-biometric:
-    build:
-      context: ./ai-biometric
-    ports:
-      - "8082:8082"
+  # ai-biometric is off the critical path (auth is on-device, ADR-0006) and the
+  # service is still empty — re-enable once it has a Dockerfile.
+  # ai-biometric:
+  #   build:
+  #     context: ./ai-biometric
+  #   ports:
+  #     - "8082:8082"
 
 volumes:
   pgdata:
