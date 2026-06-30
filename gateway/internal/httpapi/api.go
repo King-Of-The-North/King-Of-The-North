@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
@@ -26,14 +27,23 @@ const (
 	defaultRiskMargin  = 0.10
 )
 
+// Ledger is the P2P ledger surface the API needs: a Node plus the cluster's
+// replication controls (the *ledgerp2p.Cluster satisfies it).
+type Ledger interface {
+	ledgerp2p.Node
+	Nodes() []ledgerp2p.NodeStatus
+	KillReplica(id int) bool
+	AddReplica()
+}
+
 // API holds the dependencies the handlers need.
 type API struct {
 	wallet walletv1.WalletServiceClient
-	ledger ledgerp2p.Node
+	ledger Ledger
 }
 
-// New builds the API over a Wallet client and the P2P ledger node.
-func New(wallet walletv1.WalletServiceClient, ledger ledgerp2p.Node) *API {
+// New builds the API over a Wallet client and the P2P ledger cluster.
+func New(wallet walletv1.WalletServiceClient, ledger Ledger) *API {
 	return &API{wallet: wallet, ledger: ledger}
 }
 
@@ -46,6 +56,9 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/ledger", a.ledgerList)
 	mux.HandleFunc("GET /v1/ledger/verify", a.ledgerVerify)
 	mux.HandleFunc("GET /v1/ledger/pubkey", a.ledgerPubkey)
+	mux.HandleFunc("GET /v1/ledger/nodes", a.ledgerNodes)
+	mux.HandleFunc("POST /v1/ledger/nodes/{id}/kill", a.ledgerKill)
+	mux.HandleFunc("POST /v1/ledger/replicas/add", a.ledgerAddReplica)
 }
 
 // --- deposit -> CalculateLimit ---
@@ -223,6 +236,32 @@ func (a *API) ledgerPubkey(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"public_key": base64.StdEncoding.EncodeToString(a.ledger.PublicKey()),
 	})
+}
+
+// ledgerNodes shows every node in the cluster — the "you are the infrastructure"
+// replication view (anchor + simulated phone replicas).
+func (a *API) ledgerNodes(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"nodes": a.ledger.Nodes()})
+}
+
+// ledgerKill takes a replica offline (demo: kill a phone, lose nothing).
+func (a *API) ledgerKill(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "id must be an integer"})
+		return
+	}
+	if !a.ledger.KillReplica(id) {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no such replica"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"killed": id, "nodes": a.ledger.Nodes()})
+}
+
+// ledgerAddReplica brings a new replica online (back-filled to the current chain).
+func (a *API) ledgerAddReplica(w http.ResponseWriter, _ *http.Request) {
+	a.ledger.AddReplica()
+	writeJSON(w, http.StatusOK, map[string]any{"nodes": a.ledger.Nodes()})
 }
 
 // --- node-reward -> CreditNodeReward ---

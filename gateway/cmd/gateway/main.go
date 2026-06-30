@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -36,14 +37,16 @@ func main() {
 	defer func() { _ = wallet.Close() }()
 	log.Printf("gateway: wallet client → %s", walletAddr)
 
-	// P2P ledger node. Ephemeral Ed25519 key generated on boot for the demo (load
-	// from a secret in production). Signs each appended payment entry (ADR-0005).
+	// P2P ledger cluster: one always-present anchor (signs) + N simulated phone
+	// replicas (full-copy, killable). Ephemeral Ed25519 key generated on boot for the
+	// demo (load from a secret in production). ADR-0004 (simulated mesh) + ADR-0005.
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		log.Fatalf("gateway: ledger key: %v", err)
 	}
-	ledger := ledgerp2p.NewMemNode(priv)
-	log.Println("gateway: ledger node ready (in-process, signed)")
+	replicas := envInt("LEDGER_REPLICAS", 3)
+	ledger := ledgerp2p.NewCluster(priv, replicas)
+	log.Printf("gateway: ledger cluster ready (anchor + %d replicas, signed)", replicas)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -76,6 +79,15 @@ func main() {
 func env(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
 	}
 	return fallback
 }

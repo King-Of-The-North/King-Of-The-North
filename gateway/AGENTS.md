@@ -54,10 +54,19 @@ float.
 | `GET /v1/ledger` | — | the signed hash-chained audit log (`internal/ledgerp2p`) |
 | `GET /v1/ledger/verify` | — | re-walk the chain → `{valid, length}` |
 | `GET /v1/ledger/pubkey` | — | the node's Ed25519 verifying key (base64) |
+| `GET /v1/ledger/nodes` | — | every node in the cluster (anchor + replicas): length, in_sync, verified |
+| `POST /v1/ledger/nodes/{id}/kill` | — | take a replica offline (demo: kill a phone, lose nothing) |
+| `POST /v1/ledger/replicas/add` | — | bring a new replica online (back-filled to the chain) |
 
 A successful `/v1/pay` appends one Ed25519-signed, hash-chained entry to the ledger
 (ADR-0005) and returns its `ledger_hash`; declines append nothing. The ledger is an
 audit log — it never custodies money (Postgres + Moka are authoritative).
+
+**Replication (phase B):** the ledger is a `ledgerp2p.Cluster` — one always-present
+**anchor** (signs entries) + N killable **replica** nodes (simulated phones, full-copy,
+verify-only). On append the anchor signs once and fans the entry to every live replica.
+Kill any replica → zero loss (everyone holds the full chain, ADR-0004/0005). Replica
+count via `LEDGER_REPLICAS` (default 3).
 
 Errors: gRPC `InvalidArgument`→400, `NotFound`→404, `Unavailable`→503, else 500. A
 **declined** payment is a normal `200` with `{"approved": false, ...}`, not an error.
@@ -91,8 +100,6 @@ curl localhost:8080/v1/accounts/$U
 
 ## Not built yet (next chunks)
 
-- **Phase B** — P2P replication: multiple replica nodes, append fan-out, kill-a-node
-  zero-loss (ADR-0004 anchor). The signed ledger (phase A) is done; replication is next.
 - **Phase C** — DePIN metering → `CreditNodeReward`: meter per-node contribution, turn
   it into rewards, "cloud cost avoided" counter (ADR-0008/0013).
 - Auth: device-key registry, face-pay verification, recovery, revocation

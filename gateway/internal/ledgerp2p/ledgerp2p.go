@@ -61,8 +61,12 @@ func entryHash(content []byte, sig []byte) []byte {
 // Node is a single replica of the full ledger.
 type Node interface {
 	// AppendPayment builds, signs, chains, and stores one entry. The node fills Seq,
-	// PrevHash, and Timestamp; the caller supplies the transaction facts.
+	// PrevHash, and Timestamp; the caller supplies the transaction facts. Only a
+	// signing node (the anchor) can author; replicas return ErrNotAuthor.
 	AppendPayment(userID string, amountMinor int64, items []string, mokaRef, otherTrxCode string) (Entry, error)
+	// Receive validates a pre-signed entry (signature + chain link) and stores it.
+	// Replicas use this to replicate the anchor's entries.
+	Receive(e Entry) error
 	// Verify re-walks the whole chain: every signature valid, every link intact.
 	Verify() error
 	// Entries returns a snapshot copy of the log.
@@ -82,7 +86,7 @@ type memNode struct {
 	entries []Entry
 }
 
-// NewMemNode builds an in-memory ledger node signing with priv.
+// NewMemNode builds an in-memory signing node (the anchor) signing with priv.
 func NewMemNode(priv ed25519.PrivateKey) Node {
 	return &memNode{
 		priv: priv,
@@ -90,7 +94,20 @@ func NewMemNode(priv ed25519.PrivateKey) Node {
 	}
 }
 
+// NewReplica builds a verify-only node that replicates entries authored by the holder
+// of authorPub. It cannot sign new entries — it only Receives the anchor's (a phone
+// node in the DePIN model: full copy, verify + replicate, never custody — ADR-0005).
+func NewReplica(authorPub ed25519.PublicKey) Node {
+	return &memNode{pub: authorPub}
+}
+
+// ErrNotAuthor is returned when a replica is asked to author an entry.
+var ErrNotAuthor = errors.New("ledgerp2p: node cannot author entries (replica)")
+
 func (n *memNode) AppendPayment(userID string, amountMinor int64, items []string, mokaRef, otherTrxCode string) (Entry, error) {
+	if n.priv == nil {
+		return Entry{}, ErrNotAuthor
+	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -117,6 +134,34 @@ func (n *memNode) AppendPayment(userID string, amountMinor int64, items []string
 	e := Entry{Content: content, Sig: sig, Hash: entryHash(cb, sig)}
 	n.entries = append(n.entries, e)
 	return e, nil
+}
+
+func (n *memNode) Receive(e Entry) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if e.Content.Seq != uint64(len(n.entries)) {
+		return fmt.Errorf("%w: out-of-order entry seq %d (have %d)", ErrTampered, e.Content.Seq, len(n.entries))
+	}
+	var prevHash []byte
+	if len(n.entries) > 0 {
+		prevHash = n.entries[len(n.entries)-1].Hash
+	}
+	if !bytes.Equal(e.Content.PrevHash, prevHash) {
+		return fmt.Errorf("%w: received entry prev_hash mismatch", ErrTampered)
+	}
+	cb, err := canonicalBytes(e.Content)
+	if err != nil {
+		return fmt.Errorf("ledgerp2p: canonical: %w", err)
+	}
+	if !ed25519.Verify(n.pub, cb, e.Sig) {
+		return fmt.Errorf("%w: received entry bad signature", ErrTampered)
+	}
+	if !bytes.Equal(e.Hash, entryHash(cb, e.Sig)) {
+		return fmt.Errorf("%w: received entry hash mismatch", ErrTampered)
+	}
+	n.entries = append(n.entries, e)
+	return nil
 }
 
 // ErrTampered is returned by Verify when a signature or chain link does not check out.
