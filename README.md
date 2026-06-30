@@ -161,7 +161,7 @@ king-of-the-north/
 
 ## 👥 Team
 
-Built for the MOKA UNITED Hackathon. See the [organization profile](./profile/README.md).
+Built for the MOKA UNITED Hackathon. See the [organization profile](https://github.com/King-Of-The-North).
 
 ---
 
