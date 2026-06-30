@@ -3,7 +3,7 @@
 **Service:** `wallet/` (Go) — financial brain & ledger
 **Roadmap slot:** Days 1–2 of the 9-day window (Jul 3–12)
 **Source of record:** NotebookLM "King Of the North" (conv `5318793a`), ARCHITECTURE.md §1.3, §3.3
-**Status:** PLANNED — ready to build
+**Status:** BUILT — runnable + tested (branch `feat/wallet-ledger`). Connecting Gateway is next.
 
 ---
 
@@ -139,15 +139,23 @@ pitch, not coded for the demo.
 
 ---
 
-## 6. Build Order (Days 1–2)
+## 6. Build Order (Days 1–2) — DONE
 
-1. `proto/wallet.proto` + generate Go stubs.
-2. PostgreSQL schema + migrations (`accounts`, `transactions`).
-3. Day-Zero calc pkg — pure function, unit-tested against the worked example.
-4. Ledger repo — deposit (mint 1:1), atomic deduct (`FOR UPDATE`).
-5. `MokaClient` interface + `MockMokaClient`.
-6. gRPC server wiring `CalculateLimit` + `ValidateTransaction`.
-7. Integration test: deposit → L0 granted → deduct ≤ L0 → settle (mock) → receipt.
+1. ✅ `proto/wallet.proto` + generated Go stubs (`gen/`).
+2. ✅ PostgreSQL schema + migration (`accounts`, `transactions`) — embedded, auto-applied on boot.
+3. ✅ Day-Zero calc pkg — pure function, unit-tested against the worked example.
+4. ✅ Ledger repo (`internal/store`) — deposit (upsert principal+Yp+L0), atomic deduct (`FOR UPDATE`), `SetMokaPaymentID`, `CreditNodeReward`.
+5. ✅ `moka.Client` interface + `moka.Mock`.
+6. ✅ gRPC server (`internal/service` + `cmd/wallet`) wiring all four RPCs (`CalculateLimit`, `GetAccount`, `ValidateTransaction`, `CreditNodeReward`) + side `/healthz`.
+7. ✅ Integration tests vs real Postgres (docker-compose, host port **5440**), incl. the concurrent double-spend invariant (30 goroutines → exactly 10 approved, 0 double-spent). Full demo loop verified over live gRPC.
+
+**Run:** `docker compose -f wallet/docker-compose.yml up -d` then `go run ./wallet/cmd/wallet/` (gRPC `:9091`, health `:8081`).
+**Test:** `go test -tags integration ./wallet/internal/store/` (needs the container up).
+
+### Not yet wired (next)
+- **Gateway → Wallet** gRPC client + REST routes (the consumer/admin-facing API). Wallet has no caller yet.
+- Real Moka client (swap `moka.Mock` once sandbox creds land — ADR-0002).
+- `Transfer` RPC (user→user) and offline spending vouchers — design-stage, optional.
 
 ## 7. Real vs Mock
 

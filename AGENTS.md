@@ -12,6 +12,10 @@ sharding + physical RFID gate). That is **superseded**. The current design lives
 - `docs/decisions/0006` — auth = **on-device OpenCV face match**; biometric **never leaves the phone**.
 - `docs/decisions/0007` — **phone barcode scan-and-go** replaces the physical RFID gate (gate = production vision only).
 - `docs/decisions/0008` — **DePIN**: client phones run the P2P nodes → cut Moka cloud OPEX → users **earn credit** for it. This is the headline.
+- `docs/decisions/0010` — **no biometric in the P2P layer** (not even hashed/sharded); biometric stays on-device, only keys/signatures move.
+- `docs/decisions/0011` — **account recovery + device rebinding** (lost/new phone): money anchored to `user_id`, re-enroll biometric locally, revocable keys.
+- `docs/decisions/0012` — **offline spending vouchers** (capped, design-only): take the server out of the per-payment path; bounded double-spend risk.
+- `docs/decisions/0013` — **reward funding + unit economics**: rewards backed by real savings only, capped at value created; cashback-not-yield.
 - `docs/plans/mobile-app.md` — the consolidated build plan.
 - `docs/decisions/0001–0004` — still in force (fixed pool only, mock Moka behind interface, integer kuruş money, simulate-where-needed).
 
