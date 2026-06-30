@@ -6,7 +6,7 @@ import { Text, Button } from "@/components/ui";
 
 const links = [
   { href: "/dashboard", label: "Charges" },
-  { href: "/pos", label: "New charge" },
+  { href: "/pos", label: "New payment" },
   { href: "/admin", label: "Network" },
 ];
 

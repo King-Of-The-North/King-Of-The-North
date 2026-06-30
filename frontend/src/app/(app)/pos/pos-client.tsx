@@ -6,7 +6,6 @@ import { api, type Charge, type ChargeItem } from "@/lib/api";
 import { Heading, Text, Surface, Button, Input, Amount } from "@/components/ui";
 
 type Draft = { name: string; price: string; quantity: string };
-
 const emptyRow: Draft = { name: "", price: "", quantity: "1" };
 
 // TRY (lira) string → integer kuruş for the API (input edge only; the gateway/wallet
@@ -15,32 +14,38 @@ function toMinor(lira: string): number {
   return Math.round(parseFloat(lira || "0") * 100);
 }
 
+function webOrigin(): string {
+  return process.env.NEXT_PUBLIC_WEB_URL ?? (typeof window !== "undefined" ? window.location.origin : "");
+}
+
 export function PosClient({ merchantId }: { merchantId: string }) {
   const [rows, setRows] = useState<Draft[]>([{ ...emptyRow }]);
   const [charge, setCharge] = useState<Charge | null>(null);
-  const [qr, setQr] = useState<string>("");
+  const [qr, setQr] = useState("");
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [customerId, setCustomerId] = useState("");
 
-  // Poll the charge while it is pending so the operator sees it flip to paid live.
+  const payLink = charge ? `${webOrigin()}/pay/${charge.id}` : "";
+
+  // Poll while pending so the merchant sees it flip to paid live.
   useEffect(() => {
     if (!charge || charge.status !== "pending") return;
     const t = setInterval(async () => {
       try {
         setCharge(await api.getCharge(charge.id));
       } catch {
-        /* keep last state */
+        /* keep last */
       }
     }, 2000);
     return () => clearInterval(t);
   }, [charge]);
 
-  // Render the QR whenever a charge is created. (No charge → the form view is shown,
-  // which doesn't read qr, so there's nothing to clear.)
+  // QR of the shareable payment link (scanning opens the hosted checkout).
   useEffect(() => {
     if (!charge) return;
-    QRCode.toDataURL(charge.qr_payload, { margin: 1, width: 220 }).then(setQr).catch(() => setQr(""));
+    const link = `${webOrigin()}/pay/${charge.id}`;
+    QRCode.toDataURL(link, { margin: 1, width: 200 }).then(setQr).catch(() => setQr(""));
   }, [charge]);
 
   function updateRow(i: number, patch: Partial<Draft>) {
@@ -74,24 +79,17 @@ export function PosClient({ merchantId }: { merchantId: string }) {
   function reset() {
     setCharge(null);
     setRows([{ ...emptyRow }]);
-    setCustomerId("");
     setError("");
+    setCopied(false);
   }
 
-  async function approveAsCustomer() {
-    if (!charge) return;
-    setError("");
-    setBusy(true);
+  async function copyLink() {
     try {
-      const res = await api.approveCharge(charge.id, customerId.trim());
-      if (!res.approved) {
-        setError(res.decline_reason ?? "Declined.");
-      }
-      setCharge(await api.getCharge(charge.id));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Approval failed.");
-    } finally {
-      setBusy(false);
+      await navigator.clipboard.writeText(payLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — link is still visible to copy by hand */
     }
   }
 
@@ -99,7 +97,7 @@ export function PosClient({ merchantId }: { merchantId: string }) {
     const isPaid = charge.status === "paid";
     return (
       <>
-        <Heading level="title">{isPaid ? "Paid" : "Waiting for customer"}</Heading>
+        <Heading level="title">{isPaid ? "Paid" : "Payment link"}</Heading>
         <Surface elevated className="flex flex-col items-center gap-5 py-8">
           <Amount minorUnits={charge.amount_minor} size="display" />
           <Text variant="caption" tone={isPaid ? "primary" : "secondary"}>
@@ -107,35 +105,34 @@ export function PosClient({ merchantId }: { merchantId: string }) {
           </Text>
           {!isPaid && qr ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={qr} alt="Scan to pay" width={220} height={220} className="rounded-md" />
+            <img src={qr} alt="Payment link QR" width={200} height={200} className="rounded-md" />
           ) : null}
-          {!isPaid ? (
-            <Text variant="small" tone="tertiary">
-              Customer scans this in the KOTN app to pay.
-            </Text>
-          ) : (
-            <Text variant="small" tone="secondary">
-              Settled · {charge.customer_id?.slice(0, 12)} · {charge.moka_ref}
-            </Text>
-          )}
         </Surface>
 
         {!isPaid ? (
           <Surface className="flex flex-col gap-3">
             <Text variant="caption" tone="tertiary">
-              Demo — approve as a customer
+              Send this link to your customer
             </Text>
-            <Input
-              label="Customer user id"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              placeholder="customer UUID with a funded wallet"
-            />
-            <Button variant="primary" onClick={approveAsCustomer} disabled={busy || !customerId}>
-              {busy ? "Approving…" : "Approve & settle"}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Text variant="small" tone="secondary" className="flex-1 break-all">
+                {payLink}
+              </Text>
+              <Button variant="primary" onClick={copyLink}>
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            <Text variant="small" tone="tertiary">
+              They approve with their face in the KOTN app — this page updates to paid.
+            </Text>
           </Surface>
-        ) : null}
+        ) : (
+          <Surface className="flex flex-col gap-1">
+            <Text variant="small" tone="secondary">
+              Settled · {charge.customer_id?.slice(0, 12)} · {charge.moka_ref}
+            </Text>
+          </Surface>
+        )}
 
         {error ? (
           <Text variant="small" tone="accent">
@@ -144,7 +141,7 @@ export function PosClient({ merchantId }: { merchantId: string }) {
         ) : null}
 
         <Button variant="ghost" onClick={reset}>
-          New charge
+          New payment link
         </Button>
       </>
     );
@@ -156,7 +153,7 @@ export function PosClient({ merchantId }: { merchantId: string }) {
         <Text variant="caption" tone="tertiary">
           Online POS
         </Text>
-        <Heading level="title">New charge</Heading>
+        <Heading level="title">New payment link</Heading>
       </div>
 
       <Surface elevated className="flex flex-col gap-4">
@@ -195,7 +192,7 @@ export function PosClient({ merchantId }: { merchantId: string }) {
       ) : null}
 
       <Button variant="accent" onClick={createCharge} disabled={busy}>
-        {busy ? "Creating…" : "Create charge & show QR"}
+        {busy ? "Creating…" : "Create payment link"}
       </Button>
     </>
   );

@@ -21,3 +21,14 @@ export async function serverMerchantCharges(merchantId: string) {
   const data = await res.json();
   return data.charges ?? [];
 }
+
+import type { Charge } from "./api";
+
+// serverCharge fetches a single charge for the public checkout page. Returns null if
+// the charge does not exist (a bad/expired payment link).
+export async function serverCharge(id: string): Promise<Charge | null> {
+  const res = await fetch(`${INTERNAL}/v1/charges/${id}`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`charge fetch failed: ${res.status}`);
+  return (await res.json()) as Charge;
+}
