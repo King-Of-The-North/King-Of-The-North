@@ -62,14 +62,17 @@ func main() {
 		_, _ = w.Write([]byte(`{"status":"ok","service":"gateway"}`))
 	})
 	// Online POS: seeded e-commerce merchants + an in-memory charge store (ADR-0014).
+	// Merchants carry a phone for WhatsApp-OTP login mapping (ADR-0015).
 	chargeStore := charges.NewStore(15*time.Minute,
-		charges.Merchant{ID: "mer_demo", Name: "Demo E-Commerce"},
-		charges.Merchant{ID: "mer_kahve", Name: "Kuzey Kahve"},
+		charges.Merchant{ID: "mer_demo", Name: "Demo E-Commerce", Phone: "+905550000001"},
+		charges.Merchant{ID: "mer_kahve", Name: "Kuzey Kahve", Phone: "+905550000002"},
 	)
 
 	httpapi.New(wallet, ledger, chargeStore, depin).Routes(mux)
 
-	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	// CORS so the browser-based merchant/admin web app can call the Gateway (ADR-0014).
+	corsOrigin := env("GATEWAY_CORS_ORIGIN", "*")
+	srv := &http.Server{Addr: addr, Handler: httpapi.CORS(corsOrigin, mux), ReadHeaderTimeout: 5 * time.Second}
 
 	go func() {
 		log.Printf("gateway: listening on %s", addr)

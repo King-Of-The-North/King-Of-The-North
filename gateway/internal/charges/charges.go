@@ -24,10 +24,12 @@ const (
 	StatusExpired  Status = "expired"
 )
 
-// Merchant is an e-commerce store owner that accepts KOTN.
+// Merchant is an e-commerce store owner that accepts KOTN. Phone is the WhatsApp
+// number used for OTP login mapping (ADR-0015).
 type Merchant struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Phone string `json:"phone,omitempty"`
 }
 
 // Item is one line of a charge (mirrors the wallet cart item, kuruş).
