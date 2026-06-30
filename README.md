@@ -2,16 +2,15 @@
 
 # 👑 King Of The North
 
-### Day-Zero Yield — CeDeFi Biometric P2P Retail Payment System
+### Day-Zero Yield — a CeDeFi retail payment system
 
-**Spend tomorrow's interest today. Pay with your face. Just walk out.**
+**Spend tomorrow's interest today. Pay with your face. Be the infrastructure, get paid.**
 
 Built for the **MOKA UNITED Hackathon** · July 3–12
 
-[![Status](https://img.shields.io/badge/status-design%20phase-yellow)]()
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF)]()
 [![Hackathon](https://img.shields.io/badge/MOKA%20UNITED-Hackathon-6f42c1)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
-[![KVKK](https://img.shields.io/badge/KVKK-compliant-success)]()
 
 </div>
 
@@ -19,154 +18,105 @@ Built for the **MOKA UNITED Hackathon** · July 3–12
 
 ## 🧭 What is this?
 
-**King Of The North** is a **CeDeFi** (Centralized-Decentralized Finance) retail
-payment platform with three breakthrough ideas working together:
+A **CeDeFi** (Centralized–Decentralized Finance) retail payment platform with three
+ideas working together:
 
 | 💡 Innovation | What it does |
 |--------------|--------------|
-| **Day-Zero Yield** | Spend the *projected future yield* of a locked deposit **immediately**. Principal is never liquidated — the yield self-repays the credit line (Alchemix-style). |
-| **Serverless Biometric DB** | Face templates are **FHE-encrypted** and **sharded across shoppers' phones** over in-store Wi-Fi. No cloud biometric database, no breach liability, data stays in Turkey. |
-| **Just Walk Out** | **Passkey** (or face fallback) for identity + **UHF RAIN RFID** for merchandise → automatic settlement. No checkout line. |
+| **Day-Zero Yield** | Spend the *projected future yield* of a locked deposit **immediately**. Principal is never liquidated — yield self-repays the credit line. |
+| **DePIN P2P ledger** | Client **phones run the nodes** (they ARE the servers), so Moka offloads cloud cost — and users **earn credit** for the uptime/storage/bandwidth they contribute. The ledger is **replicated** (every node a full signed copy), so a lost node loses nothing. |
+| **Scan-and-go + on-device face pay** | The phone scans product barcodes and authorizes with **on-device face recognition** — the biometric **never leaves the device**. No checkout line, no gate hardware. |
 
-It is designed to ride **on top of Moka United's licensed rails** (digital
-wallet, Virtual/Physical/SoftPOS, card issuing) — not replace them — and to
-satisfy Turkey's strict regulatory regime (KVKK, Law 6493, Law 5651, BRSA
-Art. 34).
+It rides **on top of Moka United's licensed rails** (digital wallet, card issuing,
+Virtual POS) — real money custody stays with Moka; we never custody fiat directly.
 
-> 📐 Full design: **[ARCHITECTURE.md](./ARCHITECTURE.md)**
-
----
-
-## 🏗️ Architecture at a Glance
-
-```
-        ┌─────────────────────────────────────────────────────────┐
-        │                    Next.js Frontend                      │
-        │            (Wallet Dashboard + POS Simulator)            │
-        └───────────────────────────┬─────────────────────────────┘
-                                     │ REST
-        ┌───────────────────────────▼─────────────────────────────┐
-        │                     Go API Gateway                       │
-        │        auth · rate-limit · routing · P2P health          │
-        └──────┬──────────────────────────────────────┬───────────┘
-               │ gRPC                                  │ gRPC
-   ┌───────────▼────────────┐              ┌───────────▼────────────┐
-   │  Python AI Biometric   │              │   Go Wallet / Yield    │
-   │  128-d embed · FHE     │─────gRPC────▶│   ledger · Day-Zero    │
-   │  match (SEAL/BFV)      │ ValidateTxn  │   ★ owns Moka API ★    │
-   └────────────────────────┘              └───────────┬────────────┘
-                                                       │ HTTPS
-                                          ┌────────────▼────────────┐
-                                          │     MOKA UNITED APIs     │
-                                          │ Wallet · Card · VPOS/3DS │
-                                          └─────────────────────────┘
-```
-
-**Hot path / smart path:** Go handles latency-sensitive money; Python handles
-AI inference.
+> 📐 Design: **[ARCHITECTURE.md](./ARCHITECTURE.md)** · decisions in **[docs/decisions/](./docs/decisions/)** · plans in **[docs/plans/](./docs/plans/)**
+> The current design is defined by **ADR-0005–0009**; older prose in ARCHITECTURE.md §2–§3 is superseded.
 
 ---
 
-## 🧩 The Four Services
+## 🏗️ Architecture
 
-| Service | Stack | Owns |
-|---------|-------|------|
-| **Frontend** | Next.js | Wallet UI, merchant POS UI, camera capture |
-| **API Gateway** | Go | Ingress, auth, gRPC routing, P2P shard rebalancing |
-| **Wallet / Yield** | Go | Ledger, Day-Zero math, **Moka integration** |
-| **AI Biometric** | Python (dlib/OpenCV + SEAL) | Face embedding, FHE match |
+```
+   Expo mobile app (consumer)          Next.js (store catalog + admin)
+   deposit · scan-and-go · face-pay     barcodes · settlements · ledger view
+        │  REST                                   │  REST
+        └──────────────┬──────────────────────────┘
+                       ▼
+                 Go API Gateway  ── hosts ──►  P2P replicated ledger nodes
+                 REST · routing · DePIN metering        (+ client phone nodes)
+              gRPC │                    │ gRPC
+       ┌───────────▼──────┐   ┌─────────▼──────────┐
+       │  Go Wallet/Yield │   │  Python AI         │
+       │  ledger · L0     │   │  (off pay path —   │
+       │  ★ Moka owner ★ │   │  on-device auth)   │
+       └────────┬─────────┘   └────────────────────┘
+        Postgres │ (authoritative $)   HTTPS │
+                 └──────► MOKA UNITED APIs (custody · settle)
+```
+
+**CeDeFi safety:** real money in Moka + authoritative balances in Postgres (**Ce**);
+the P2P log is a **replicated, signed audit ledger** that never custodies funds (**De**).
 
 ---
 
 ## 🔐 Day-Zero Yield Math
 
 ```
-FV  = D · (1 + r/n)^(n·t)            # future value of deposit
-Yp  = D · [ (1 + r/n)^(n·t) − 1 ]    # projected yield
-L0  = Yp · (1 − m)                   # spendable Day-Zero limit
+FV = D · (1 + r/n)^(n·t)            # future value
+Yp = D · [ (1 + r/n)^(n·t) − 1 ]    # projected yield
+L0 = Yp · (1 − m)                   # spendable Day-Zero limit (floored to kuruş)
 ```
 
-`D` deposit · `r` APY · `n` compounding · `t` lock-up · `m` risk margin
-(**10–15%** fixed pool, **35–50%** AI equity pool).
-
-If yield underperforms → **Yield Amortization Extension** lengthens lock-up `t`
-instead of touching principal.
+`D` deposit · `r` APY · `n` compounding · `t` lock-up · `m` risk margin (10–15%, fixed
+pool). Implemented + tested in [`wallet/internal/calc`](./wallet/internal/calc).
 
 ---
 
-## 🛰️ Decentralized Biometric Storage
+## 🗂️ Monorepo
 
-1. Register → 128-dim face embedding.
-2. Encrypt with **FHE** (Microsoft SEAL, BFV, 128-bit) → ~128 KB ciphertext.
-3. **Erasure-code** into shards (e.g. 50 shards, **quorum 15**).
-4. Distribute to shoppers' phones over in-store Wi-Fi Direct.
-5. Match on **ciphertext** (FHE subtract/divide) — never decrypted.
-
-✅ No cloud biometric DB · ✅ data stays in-country (KVKK) · ✅ no reconstructable template
-
----
-
-## 🚪 Just Walk Out Flow
-
-```
-join Wi-Fi (5651 log) → grab RFID items
-   → exit: Passkey via Face ID/fingerprint  (primary)
-           or POS face-match vs FHE shards  (fallback)
-   → UHF gate reads identity + EPC cart
-   → Gateway bundles → Wallet checks L0
-   → Moka Virtual POS settles (3DS 2.0) → receipt
-```
+| Dir | Stack | Role |
+|-----|-------|------|
+| `mobile/` | Expo / React Native | **Consumer app** (the demo) |
+| `frontend/` | Next.js | Store catalog + admin dashboard |
+| `gateway/` | Go | REST ingress, gRPC routing, P2P ledger + DePIN metering |
+| `wallet/` | Go | Ledger, Day-Zero math, **Moka integration** |
+| `ai-biometric/` | Python | Off the pay path (auth is on-device); optional liveness |
+| `proto/` | Buf/protobuf | gRPC contract (`wallet.proto`) |
+| `docs/` | — | `decisions/` (ADRs) + `plans/` |
 
 ---
 
-## 🇹🇷 Regulatory Compliance
+## 🚀 Quickstart
 
-| Law | Handled by |
-|-----|-----------|
-| **KVKK / Law 6698** | FHE zero-knowledge templates, in-country shards |
-| **Law 6493** (wallet licensing) | Fiat lives in licensed **Moka** wallet |
-| **Law 5651** (logging) | Edge-Buffered P2P Logging + TÜBİTAK Kamu SM timestamp |
-| **BRSA Art. 34** (2FA) | Passkeys (possession) + device biometric (inherence) |
-| **PCI DSS / 3DS 2.0** | Card data stays inside Moka's environment |
+```bash
+brew install buf go-task lefthook golangci-lint   # one-time tools
+cp .env.example .env
+task setup        # install JS + Go + Python deps (+ git hooks)
+task up           # Postgres + gateway + wallet + ai-biometric (Docker)
+task dev:mobile   # run the Expo app natively
+```
+
+`task --list` for everything. Contributor guide: **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
+
+---
+
+## 🇹🇷 Regulatory posture
+
+Real fiat lives in **licensed Moka** (Law 6493); **no biometric is stored** server-side
+(on-device auth, KVKK-friendly); 2FA via device-bound credentials (BRSA Art. 34); card
+data stays inside Moka's PCI environment. Cross-border/biometric-store risk is removed
+by design.
 
 ---
 
 ## 🚧 Status
 
-**Design & planning phase — no application code yet.** This repo currently holds
-the architecture blueprint. Hackathon build window: **July 3–12**.
-
-**MVP strategy:** build the innovative loop for real (deposit → L0 → walk out →
-settle → receipt); mock peripheral banking (NVİ SOAP, TÜBİTAK timestamp, card
-lifecycle).
-
-### Planned layout
-```
-king-of-the-north/
-├── frontend/        # Next.js — dashboard + POS simulator
-├── gateway/         # Go — API gateway
-├── wallet/          # Go — wallet/yield + Moka integration
-├── ai-biometric/    # Python — embedding + FHE match
-├── proto/           # shared gRPC definitions
-└── ARCHITECTURE.md  # system design document
-```
-
----
-
-## 🛠️ Tech Stack
-
-**Frontend** Next.js · **Backend** Go (Gateway, Wallet) · **AI** Python, dlib/OpenCV, Microsoft SEAL (FHE) · **Transport** REST + gRPC · **Hardware** UHF RAIN RFID (860–960 MHz, SGTIN-96), FIDO2 Passkeys · **Rails** Moka United (Wallet, Card Issuing, Virtual POS)
-
----
-
-## 👥 Team
-
-Built for the MOKA UNITED Hackathon. See the [organization profile](https://github.com/King-Of-The-North).
-
----
+**Design done; tooling + scaffolds in place.** Backends are runnable skeletons
+(boot + `/healthz`); feature build follows the service plans during **July 3–12**.
 
 <div align="center">
 
-*Bringing future capital into the present — securely, biometrically, compliantly.*
+*Bringing future capital into the present — securely, on-device, and decentralized.*
 
 </div>

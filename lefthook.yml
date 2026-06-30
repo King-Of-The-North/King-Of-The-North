@@ -1,0 +1,25 @@
+# Git hooks (polyglot). Installed via `pnpm install` -> `prepare` -> `lefthook install`.
+pre-commit:
+  parallel: true
+  commands:
+    go-fmt:
+      glob: "*.go"
+      run: test -z "$(gofmt -l .)"
+      fail_text: "Go files need gofmt — run `task fmt`."
+    go-lint:
+      glob: "*.go"
+      run: golangci-lint run ./gateway/... ./wallet/...
+    py-lint:
+      glob: "ai-biometric/**/*.py"
+      run: uv run --project ai-biometric ruff check ai-biometric
+    js-lint:
+      glob: "{frontend,mobile}/**/*.{js,jsx,ts,tsx}"
+      run: pnpm -r --if-present lint
+    proto-lint:
+      glob: "proto/**/*.proto"
+      run: buf lint
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}

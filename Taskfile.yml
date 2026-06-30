@@ -1,0 +1,76 @@
+# Unified dev entrypoint. `task --list` to see everything.
+# Hybrid model: `task up` runs infra+backends in Compose; `task dev:*` runs one
+# service natively for fast iteration. See CONTRIBUTING.md.
+version: "3"
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  setup:
+    desc: Install all dependencies (JS + Go + Python)
+    cmds:
+      - pnpm install
+      - go mod download
+      - cd ai-biometric && uv sync
+
+  proto:
+    desc: Lint + generate gRPC/proto stubs into gen/
+    cmds:
+      - buf lint
+      - buf generate
+
+  up:
+    desc: Start Postgres + backend services (Compose, hybrid infra)
+    cmds:
+      - docker compose up -d --build
+
+  down:
+    desc: Stop the Compose stack
+    cmds:
+      - docker compose down
+
+  logs:
+    desc: Tail Compose logs
+    cmds:
+      - docker compose logs -f
+
+  # --- native dev (run the one service you're editing) ---
+  dev:gateway:
+    desc: Run gateway natively
+    cmds: [go run ./gateway/cmd/gateway]
+  dev:wallet:
+    desc: Run wallet natively
+    cmds: [go run ./wallet/cmd/wallet]
+  dev:ai:
+    desc: Run ai-biometric natively (hot reload)
+    dir: ai-biometric
+    cmds: [uv run uvicorn app.main:app --reload --port 8082]
+  dev:frontend:
+    desc: Run Next.js frontend
+    cmds: [pnpm --filter frontend dev]
+  dev:mobile:
+    desc: Run Expo mobile app
+    cmds: [pnpm --filter mobile start]
+
+  # --- quality ---
+  lint:
+    desc: Lint everything (Go, Python, JS, proto)
+    cmds:
+      - golangci-lint run ./gateway/... ./wallet/...
+      - cd ai-biometric && uv run ruff check .
+      - pnpm -r --if-present lint
+      - buf lint
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./gateway/... ./wallet/... ./gen/...
+      - cd ai-biometric && uv run pytest -q
+
+  fmt:
+    desc: Format everything
+    cmds:
+      - gofmt -w .
+      - cd ai-biometric && uv run ruff format .
+      - pnpm format

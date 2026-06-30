@@ -1,0 +1,19 @@
+version: "2"
+
+run:
+  timeout: 3m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+  exclusions:
+    paths:
+      - gen # generated proto code
+      - node_modules # JS workspace lives under the same root
+      - frontend
+      - mobile

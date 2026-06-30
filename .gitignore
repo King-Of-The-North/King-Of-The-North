@@ -1,10 +1,27 @@
 .DS_Store
-node_modules/
 *.log
+
+# env
 .env
 .env.local
+.env.*.local
+
+# node / JS
+node_modules/
+.next/
+.expo/
+dist/
+build/
+
+# python (uv)
+.venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
+
+# go
 /bin/
-/dist/
-/build/
+
+# NOTE: gen/ (generated proto code) and pnpm-lock.yaml ARE committed on purpose —
+# don't ignore them.

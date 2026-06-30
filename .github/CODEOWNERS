@@ -1,0 +1,12 @@
+# Code ownership for review routing.
+# TODO: replace the placeholder handles with real GitHub usernames/teams.
+
+# Default owner (everything not matched below)
+*               @yurikaza
+
+# Mobile app — owned by the teammate building it
+/mobile/        @yurikaza
+
+# Architecture & decisions need owner review
+/docs/          @yurikaza
+/ARCHITECTURE.md @yurikaza

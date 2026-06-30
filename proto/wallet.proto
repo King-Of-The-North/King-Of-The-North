@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package kotn.wallet.v1;
+
+option go_package = "github.com/king-of-the-north/king-of-the-north/gen;walletv1";
+
+// WalletService is the financial brain & ledger. All money values are integer
+// minor units (kuruş) — never floats (ADR-0003). The Wallet service is the single
+// owner of the Moka United integration.
+service WalletService {
+  // Gateway -> Wallet: compute the Day-Zero spendable limit from a deposit.
+  rpc CalculateLimit(CalculateLimitRequest) returns (CalculateLimitResponse);
+  // Gateway -> Wallet: read current account state for the app dashboard.
+  rpc GetAccount(GetAccountRequest) returns (Account);
+  // Gateway -> Wallet: validate + atomically settle a cart against available credit.
+  rpc ValidateTransaction(ValidateTransactionRequest) returns (ValidateTransactionResponse);
+  // Gateway -> Wallet: credit a user for running a P2P node (DePIN, ADR-0008).
+  rpc CreditNodeReward(CreditNodeRewardRequest) returns (CreditNodeRewardResponse);
+}
+
+message CalculateLimitRequest {
+  string user_id = 1;
+  int64 deposit_minor = 2; // D, in kuruş
+  double apy = 3; // r
+  uint32 compounding_per_year = 4; // n
+  uint32 lockup_years = 5; // t
+  double risk_margin = 6; // m (0.10–0.15, fixed pool — ADR-0001)
+}
+
+message CalculateLimitResponse {
+  int64 credit_limit_minor = 1; // L0
+  int64 projected_yield_minor = 2; // Yp
+  string lockup_end_date = 3; // RFC3339
+}
+
+message GetAccountRequest {
+  string user_id = 1;
+}
+
+message Account {
+  string user_id = 1;
+  int64 principal_minor = 2;
+  int64 projected_yield_minor = 3;
+  int64 credit_limit_minor = 4;
+  int64 available_credit_minor = 5;
+  double ltv_ratio = 6;
+  string lockup_end_date = 7;
+  string pool_type = 8; // "fixed" only (ADR-0001)
+}
+
+message CartItem {
+  string sku = 1;
+  string name = 2;
+  int64 price_minor = 3;
+  uint32 quantity = 4;
+}
+
+message ValidateTransactionRequest {
+  string user_id = 1;
+  repeated CartItem items = 2;
+  string other_trx_code = 3; // our internal id sent to Moka
+}
+
+message ValidateTransactionResponse {
+  bool approved = 1;
+  int64 remaining_credit_minor = 2;
+  string moka_payment_id = 3;
+  string decline_reason = 4;
+}
+
+message CreditNodeRewardRequest {
+  string user_id = 1;
+  // Opaque, signed contribution proof produced by the Gateway metering layer.
+  bytes contribution_proof = 2;
+}
+
+message CreditNodeRewardResponse {
+  int64 credited_minor = 1;
+  int64 available_credit_minor = 2;
+}

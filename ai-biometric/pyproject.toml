@@ -1,0 +1,28 @@
+[project]
+name = "ai-biometric"
+version = "0.0.0"
+description = "AI biometric service. Off the critical pay path — auth is on-device (ADR-0006). Optional liveness/quality + fallback match."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9",
+    "pytest>=8",
+]
+
+# This is an application, not a library — don't try to build/install the project.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
