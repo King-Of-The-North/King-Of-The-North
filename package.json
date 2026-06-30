@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "pnpm --parallel --filter frontend --filter mobile dev",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:mobile": "pnpm --filter mobile start",
     "build:frontend": "pnpm --filter frontend build",

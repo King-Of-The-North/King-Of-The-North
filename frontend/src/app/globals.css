@@ -1,26 +1,70 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* Map design-system tokens (--kotn-* from tokens.css) into Tailwind's theme so
+   utilities like bg-background, text-text-secondary, font-sans, rounded-lg
+   resolve to them. `inline` keeps values referencing the live --kotn-* vars
+   (so dark mode / data-theme overrides flow through). */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-background: var(--kotn-color-background);
+  --color-surface: var(--kotn-color-surface);
+  --color-surface-elevated: var(--kotn-color-surface-elevated);
+  --color-text-primary: var(--kotn-color-text-primary);
+  --color-text-secondary: var(--kotn-color-text-secondary);
+  --color-text-tertiary: var(--kotn-color-text-tertiary);
+  --color-text-on-accent: var(--kotn-color-text-on-accent);
+  --color-text-inverse: var(--kotn-color-text-inverse);
+  --color-border: var(--kotn-color-border);
+  --color-accent: var(--kotn-color-accent);
+  --color-success: var(--kotn-color-success);
+  --color-warning: var(--kotn-color-warning);
+  --color-danger: var(--kotn-color-danger);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-display), "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  --radius-sm: var(--kotn-radius-sm);
+  --radius-md: var(--kotn-radius-md);
+  --radius-lg: var(--kotn-radius-lg);
+  --radius-xl: var(--kotn-radius-xl);
+  --radius-full: var(--kotn-radius-full);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--kotn-color-background);
+  color: var(--kotn-color-text-primary);
+  font-family: var(--font-display), "Helvetica Neue", Helvetica, Arial, system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* --- Craft details (top-design pillar 7) --- */
+
+/* Branded selection — accent on all surfaces. */
+::selection {
+  background: var(--kotn-color-accent);
+  color: var(--kotn-color-text-on-accent);
+}
+
+/* Visible AND beautiful focus — never remove the ring, restyle it. */
+:focus-visible {
+  outline: 2px solid var(--kotn-color-accent);
+  outline-offset: 2px;
+  border-radius: var(--kotn-radius-sm);
+}
+
+/* No orphans on headings; tight optical wrapping. */
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Respect reduced-motion — kill non-essential animation. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

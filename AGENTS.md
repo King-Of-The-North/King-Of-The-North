@@ -27,6 +27,7 @@ When the old docs and an ADR disagree, **the ADR wins**.
 | `wallet/` | Go | Ledger, Day-Zero math, **Moka integration (single owner)**, `CreditNodeReward` | empty |
 | `ai-biometric/` | Python | Off critical path now (auth is on-device); optional liveness / fallback match | empty |
 | `proto/` | protobuf | gRPC contract — **change here first** | empty |
+| `packages/design-system/` | TS (`@kotn/design-system`) | **Shared design system** — tokens + fonts for both `mobile/` and `frontend/`. Single source of truth | active |
 | `docs/` | — | `plans/` and `decisions/` (ADRs) — source of truth | active |
 
 ## Who works on what
@@ -36,7 +37,13 @@ When the old docs and an ADR disagree, **the ADR wins**.
 
 ## Conventions
 
+- **Design system first (UI):** both apps consume `@kotn/design-system` (`packages/design-system`).
+  **Never hardcode** colors, fonts, font-sizes, spacing, radius, or easings — import tokens / use the
+  `ui/` primitives (`Text` `Heading` `Button` `Surface` `Input` `Amount`). Type voice = Neue Haas
+  Grotesk Display; warm neutrals + one accent. Re-brand = edit `raw.accent`, run
+  `pnpm --filter @kotn/design-system build:css`. Add primitives, don't reinvent per-screen.
 - **Money = integer minor units (kuruş, `int64`/`BIGINT`)** — never floats for stored balances (ADR-0003).
+  Render with the `Amount` primitive (shared `formatMinorUnits`), never format money by hand.
 - **Proto first:** any cross-service change starts in `proto/`, then regen stubs.
 - **Moka is mocked behind an interface** until sandbox creds land (ADR-0002).
 - **Safety invariant:** real money lives in Moka + Postgres (authoritative). The P2P layer only **replicates a signed audit log** — it never custodies balances. Don't shard money.

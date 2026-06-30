@@ -28,6 +28,28 @@ Screens to build (see plan §2):
 6. Receipt.
 7. **Node / earnings (DePIN)** — phone runs a real lightweight P2P node; shows "you are a server": uptime, data replicated, requests served, **credit earned**.
 
+## Design system — use it, don't reinvent (`@kotn/design-system`)
+
+The look is already built. **Build every screen from the shared system — never hardcode
+a color, font, size, spacing, radius, or easing.**
+
+- **Primitives** live in `src/components/ui/` — `Text`, `Heading`, `Button`, `Surface`,
+  `Input`, `Amount`. Import from `@/components/ui`. Example:
+  ```tsx
+  import { Heading, Text, Button, Amount } from '@/components/ui';
+  <Heading level="display">Pay</Heading>
+  <Amount minorUnits={l0} size="display" />   // kuruş in, formatted out — no math
+  <Button variant="accent" onPress={pay}>Confirm</Button>
+  ```
+- **Tokens** (when a primitive isn't enough): `import { semantic, scale, spacing, radius, easing } from '@kotn/design-system'`.
+  Colors via `useTheme()` (`src/hooks/use-theme.ts`) → `theme.accent`, `theme.surface`,
+  `theme.textSecondary`, … Spacing/sizes via `Spacing` / tokens from `@/constants/theme`.
+- Fonts (Neue Haas Grotesk Display) load in `src/app/_layout.tsx`; the primitives already
+  set the right face per weight. Don't set `fontFamily`/`fontWeight` by hand — use `Text`/`Heading`.
+- Need a new shared component? Add it to `src/components/ui/` with a web sibling in
+  `frontend/src/components/ui/` (same name + props), built on tokens. Don't fork styles per screen.
+- The styleguide (`Design` tab → `src/app/explore.tsx`) shows every primitive — copy from it.
+
 ## Hard rules (don't break these)
 
 - **Biometric never leaves the device** (ADR-0006). No face image/template in any

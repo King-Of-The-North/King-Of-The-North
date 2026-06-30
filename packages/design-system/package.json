@@ -1,0 +1,20 @@
+{
+  "name": "@kotn/design-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-platform design tokens, fonts, and primitives for King Of The North (web + mobile)",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens": "./src/tokens/index.ts",
+    "./css/generate": "./src/css/generate.ts"
+  },
+  "files": [
+    "src",
+    "fonts"
+  ],
+  "scripts": {
+    "build:css": "node --experimental-strip-types src/css/generate.ts"
+  }
+}
