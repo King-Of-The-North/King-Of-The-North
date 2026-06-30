@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/charges"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/httpapi"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/walletclient"
@@ -60,7 +61,13 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok","service":"gateway"}`))
 	})
-	httpapi.New(wallet, ledger, depin).Routes(mux)
+	// Online POS: seeded e-commerce merchants + an in-memory charge store (ADR-0014).
+	chargeStore := charges.NewStore(15*time.Minute,
+		charges.Merchant{ID: "mer_demo", Name: "Demo E-Commerce"},
+		charges.Merchant{ID: "mer_kahve", Name: "Kuzey Kahve"},
+	)
+
+	httpapi.New(wallet, ledger, chargeStore, depin).Routes(mux)
 
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 

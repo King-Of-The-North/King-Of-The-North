@@ -4,8 +4,10 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/charges"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
 
@@ -50,18 +53,20 @@ type DepinConfig struct {
 
 // API holds the dependencies the handlers need.
 type API struct {
-	wallet walletv1.WalletServiceClient
-	ledger Ledger
-	depin  DepinConfig
+	wallet  walletv1.WalletServiceClient
+	ledger  Ledger
+	charges *charges.Store
+	depin   DepinConfig
 
 	mu                sync.Mutex
 	totalRewardedMin  int64 // lifetime DePIN credit paid out
 	totalCloudAvoided int64 // lifetime cloud cost avoided (the value created)
 }
 
-// New builds the API over a Wallet client and the P2P ledger cluster.
-func New(wallet walletv1.WalletServiceClient, ledger Ledger, depin DepinConfig) *API {
-	return &API{wallet: wallet, ledger: ledger, depin: depin}
+// New builds the API over a Wallet client, the P2P ledger cluster, and the online-POS
+// charge store.
+func New(wallet walletv1.WalletServiceClient, ledger Ledger, store *charges.Store, depin DepinConfig) *API {
+	return &API{wallet: wallet, ledger: ledger, charges: store, depin: depin}
 }
 
 // Routes registers the REST endpoints on a mux (Go 1.22+ method+path patterns).
@@ -78,6 +83,13 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/ledger/replicas/add", a.ledgerAddReplica)
 	mux.HandleFunc("GET /v1/depin/stats", a.depinStats)
 	mux.HandleFunc("POST /v1/depin/settle", a.depinSettle)
+	// Online POS (e-commerce charges, ADR-0014)
+	mux.HandleFunc("GET /v1/merchants", a.merchantsList)
+	mux.HandleFunc("GET /v1/merchants/{id}/charges", a.merchantCharges)
+	mux.HandleFunc("POST /v1/charges", a.chargeCreate)
+	mux.HandleFunc("GET /v1/charges/{id}", a.chargeGet)
+	mux.HandleFunc("POST /v1/charges/{id}/approve", a.chargeApprove)
+	mux.HandleFunc("POST /v1/charges/{id}/cancel", a.chargeCancel)
 }
 
 // --- deposit -> CalculateLimit ---
@@ -169,50 +181,66 @@ func (a *API) pay(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	items := make([]*walletv1.CartItem, 0, len(req.Items))
-	for _, it := range req.Items {
-		items = append(items, &walletv1.CartItem{
-			Sku:        it.SKU,
-			Name:       it.Name,
-			PriceMinor: it.PriceMinor,
-			Quantity:   it.Quantity,
-		})
-	}
-
-	resp, err := a.wallet.ValidateTransaction(r.Context(), &walletv1.ValidateTransactionRequest{
-		UserId:       req.UserID,
-		Items:        items,
-		OtherTrxCode: req.OtherTrxCode,
-	})
+	res, err := a.settle(r.Context(), req.UserID, req.Items, req.OtherTrxCode)
 	if err != nil {
 		writeGRPCError(w, err)
 		return
 	}
-
-	// On approval, append a signed entry to the replicated ledger — the "receipt →
-	// entry in the replicated ledger" step (ADR-0005). The money already settled in
-	// the authoritative store; this records a tamper-evident audit log. A ledger
-	// append failure does not unwind a settled payment — log and continue.
-	var ledgerHash string
-	if resp.GetApproved() {
-		entry, lerr := a.ledger.AppendPayment(
-			req.UserID, cartTotal(req.Items), itemLabels(req.Items),
-			resp.GetMokaPaymentId(), req.OtherTrxCode)
-		if lerr != nil {
-			log.Printf("gateway: ledger append failed for %s: %v", req.OtherTrxCode, lerr)
-		} else {
-			ledgerHash = base64.StdEncoding.EncodeToString(entry.Hash)
-		}
-	}
-
 	// A declined payment is a valid 200 response with approved=false, not an error.
 	writeJSON(w, http.StatusOK, map[string]any{
-		"approved":               resp.GetApproved(),
-		"remaining_credit_minor": resp.GetRemainingCreditMinor(),
-		"moka_payment_id":        resp.GetMokaPaymentId(),
-		"decline_reason":         resp.GetDeclineReason(),
-		"ledger_hash":            ledgerHash,
+		"approved":               res.approved,
+		"remaining_credit_minor": res.remaining,
+		"moka_payment_id":        res.mokaID,
+		"decline_reason":         res.declineReason,
+		"ledger_hash":            res.ledgerHash,
 	})
+}
+
+// settleResult is the outcome of settling a cart against the wallet + ledger.
+type settleResult struct {
+	approved      bool
+	remaining     int64
+	mokaID        string
+	declineReason string
+	ledgerHash    string
+}
+
+// settle is the one money path shared by customer pay (/v1/pay) and merchant-initiated
+// charge approval (/v1/charges/{id}/approve): validate+deduct in the wallet, then on
+// approval append a signed ledger entry (ADR-0005). otherTrxCode keys the transaction
+// (cart trx code, or the charge id) so it maps 1:1 to a ledger/Moka record.
+func (a *API) settle(ctx context.Context, userID string, items []payItem, otherTrxCode string) (settleResult, error) {
+	cart := make([]*walletv1.CartItem, 0, len(items))
+	for _, it := range items {
+		cart = append(cart, &walletv1.CartItem{
+			Sku: it.SKU, Name: it.Name, PriceMinor: it.PriceMinor, Quantity: it.Quantity,
+		})
+	}
+	resp, err := a.wallet.ValidateTransaction(ctx, &walletv1.ValidateTransactionRequest{
+		UserId:       userID,
+		Items:        cart,
+		OtherTrxCode: otherTrxCode,
+	})
+	if err != nil {
+		return settleResult{}, err
+	}
+	res := settleResult{
+		approved:      resp.GetApproved(),
+		remaining:     resp.GetRemainingCreditMinor(),
+		mokaID:        resp.GetMokaPaymentId(),
+		declineReason: resp.GetDeclineReason(),
+	}
+	// A ledger append failure does not unwind a settled payment — log and continue.
+	if resp.GetApproved() {
+		entry, lerr := a.ledger.AppendPayment(
+			userID, cartTotal(items), itemLabels(items), resp.GetMokaPaymentId(), otherTrxCode)
+		if lerr != nil {
+			log.Printf("gateway: ledger append failed for %s: %v", otherTrxCode, lerr)
+		} else {
+			res.ledgerHash = base64.StdEncoding.EncodeToString(entry.Hash)
+		}
+	}
+	return res, nil
 }
 
 // cartTotal sums the cart for the ledger record (the wallet is authoritative for the
@@ -388,6 +416,145 @@ func (a *API) depinSettle(w http.ResponseWriter, r *http.Request) {
 		"total_rewarded_minor":      totalRewarded,
 		"total_cloud_avoided_minor": totalAvoided,
 	})
+}
+
+// --- online POS: merchant-initiated charges (ADR-0014) ---
+
+func (a *API) merchantsList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"merchants": a.charges.Merchants()})
+}
+
+func (a *API) merchantCharges(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"charges": a.charges.ChargesForMerchant(r.PathValue("id")),
+	})
+}
+
+type chargeCreateRequest struct {
+	MerchantID string         `json:"merchant_id"`
+	Items      []charges.Item `json:"items"`
+}
+
+// chargeCreate is the merchant POS action: quote a price as a pending charge with a QR
+// for the customer to scan.
+func (a *API) chargeCreate(w http.ResponseWriter, r *http.Request) {
+	var req chargeCreateRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	c, err := a.charges.Create(req.MerchantID, req.Items)
+	if err != nil {
+		code := http.StatusBadRequest
+		if errors.Is(err, charges.ErrMerchantNotFound) {
+			code = http.StatusNotFound
+		}
+		writeJSON(w, code, map[string]any{"error": err.Error()})
+		return
+	}
+	writeChargeJSON(w, http.StatusCreated, *c, nil)
+}
+
+func (a *API) chargeGet(w http.ResponseWriter, r *http.Request) {
+	c, err := a.charges.Get(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
+		return
+	}
+	writeChargeJSON(w, http.StatusOK, c, nil)
+}
+
+type chargeApproveRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// chargeApprove is the customer action (after on-device face match): settle the charge
+// against their wallet. Reuses the one money path (settle); on approval the charge is
+// marked paid. A declined or already-settled charge is reported, not charged twice.
+func (a *API) chargeApprove(w http.ResponseWriter, r *http.Request) {
+	var req chargeApproveRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.UserID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "user_id required"})
+		return
+	}
+
+	id := r.PathValue("id")
+	c, err := a.charges.BeginApprove(id)
+	if err != nil {
+		code := http.StatusConflict
+		if errors.Is(err, charges.ErrChargeNotFound) {
+			code = http.StatusNotFound
+		}
+		writeJSON(w, code, map[string]any{"error": err.Error()})
+		return
+	}
+
+	res, err := a.settle(r.Context(), req.UserID, chargeItemsToPay(c.Items), id)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+	if !res.approved {
+		writeChargeJSON(w, http.StatusOK, c, map[string]any{
+			"approved": false, "decline_reason": res.declineReason,
+		})
+		return
+	}
+
+	paid, err := a.charges.MarkPaid(id, req.UserID, res.mokaID)
+	if err != nil {
+		// Settled in the wallet but the charge was finalized concurrently — surface it.
+		writeJSON(w, http.StatusConflict, map[string]any{"error": err.Error()})
+		return
+	}
+	writeChargeJSON(w, http.StatusOK, paid, map[string]any{
+		"approved":               true,
+		"remaining_credit_minor": res.remaining,
+		"ledger_hash":            res.ledgerHash,
+	})
+}
+
+func (a *API) chargeCancel(w http.ResponseWriter, r *http.Request) {
+	c, err := a.charges.Cancel(r.PathValue("id"))
+	if err != nil {
+		code := http.StatusConflict
+		if errors.Is(err, charges.ErrChargeNotFound) {
+			code = http.StatusNotFound
+		}
+		writeJSON(w, code, map[string]any{"error": err.Error()})
+		return
+	}
+	writeChargeJSON(w, http.StatusOK, c, nil)
+}
+
+// writeChargeJSON renders a charge with its QR payload, merging optional extra fields.
+func writeChargeJSON(w http.ResponseWriter, code int, c charges.Charge, extra map[string]any) {
+	body := map[string]any{
+		"id":           c.ID,
+		"merchant_id":  c.MerchantID,
+		"amount_minor": c.AmountMinor,
+		"items":        c.Items,
+		"status":       c.Status,
+		"customer_id":  c.CustomerID,
+		"moka_ref":     c.MokaRef,
+		"qr_payload":   c.QRPayload(),
+		"created_at":   c.CreatedAt,
+		"expires_at":   c.ExpiresAt,
+	}
+	for k, v := range extra {
+		body[k] = v
+	}
+	writeJSON(w, code, body)
+}
+
+func chargeItemsToPay(items []charges.Item) []payItem {
+	out := make([]payItem, 0, len(items))
+	for _, it := range items {
+		out = append(out, payItem{SKU: it.SKU, Name: it.Name, PriceMinor: it.PriceMinor, Quantity: it.Quantity})
+	}
+	return out
 }
 
 // --- node-reward -> CreditNodeReward ---
