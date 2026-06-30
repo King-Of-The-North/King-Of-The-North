@@ -51,6 +51,13 @@ float.
 | `GET /v1/accounts/{id}` | `GetAccount` | path `id` = `user_id` |
 | `POST /v1/pay` | `ValidateTransaction` | `{user_id, items:[{sku,name,price_minor,quantity}], other_trx_code}` |
 | `POST /v1/node-reward` | `CreditNodeReward` | `{user_id, minor, ref}` — gateway packs `{minor,ref}` into the proof bytes (it is the metering authority, ADR-0008/0013) |
+| `GET /v1/ledger` | — | the signed hash-chained audit log (`internal/ledgerp2p`) |
+| `GET /v1/ledger/verify` | — | re-walk the chain → `{valid, length}` |
+| `GET /v1/ledger/pubkey` | — | the node's Ed25519 verifying key (base64) |
+
+A successful `/v1/pay` appends one Ed25519-signed, hash-chained entry to the ledger
+(ADR-0005) and returns its `ledger_hash`; declines append nothing. The ledger is an
+audit log — it never custodies money (Postgres + Moka are authoritative).
 
 Errors: gRPC `InvalidArgument`→400, `NotFound`→404, `Unavailable`→503, else 500. A
 **declined** payment is a normal `200` with `{"approved": false, ...}`, not an error.
@@ -84,8 +91,10 @@ curl localhost:8080/v1/accounts/$U
 
 ## Not built yet (next chunks)
 
-- Signed ledger append + P2P replication (`ledgerp2p`) and DePIN metering — the
-  "receipt → replicated ledger → earn credit" headline (ADR-0008/0013).
+- **Phase B** — P2P replication: multiple replica nodes, append fan-out, kill-a-node
+  zero-loss (ADR-0004 anchor). The signed ledger (phase A) is done; replication is next.
+- **Phase C** — DePIN metering → `CreditNodeReward`: meter per-node contribution, turn
+  it into rewards, "cloud cost avoided" counter (ADR-0008/0013).
 - Auth: device-key registry, face-pay verification, recovery, revocation
   (ADR-0011), KYC mock.
 - CORS middleware (for the web frontend).
