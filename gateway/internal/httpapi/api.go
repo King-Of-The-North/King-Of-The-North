@@ -4,9 +4,13 @@
 package httpapi
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
 
 	"google.golang.org/grpc/codes"
@@ -25,11 +29,12 @@ const (
 // API holds the dependencies the handlers need.
 type API struct {
 	wallet walletv1.WalletServiceClient
+	ledger ledgerp2p.Node
 }
 
-// New builds the API over a Wallet client.
-func New(wallet walletv1.WalletServiceClient) *API {
-	return &API{wallet: wallet}
+// New builds the API over a Wallet client and the P2P ledger node.
+func New(wallet walletv1.WalletServiceClient, ledger ledgerp2p.Node) *API {
+	return &API{wallet: wallet, ledger: ledger}
 }
 
 // Routes registers the REST endpoints on a mux (Go 1.22+ method+path patterns).
@@ -38,6 +43,9 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/accounts/{id}", a.account)
 	mux.HandleFunc("POST /v1/pay", a.pay)
 	mux.HandleFunc("POST /v1/node-reward", a.nodeReward)
+	mux.HandleFunc("GET /v1/ledger", a.ledgerList)
+	mux.HandleFunc("GET /v1/ledger/verify", a.ledgerVerify)
+	mux.HandleFunc("GET /v1/ledger/pubkey", a.ledgerPubkey)
 }
 
 // --- deposit -> CalculateLimit ---
@@ -148,12 +156,72 @@ func (a *API) pay(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err)
 		return
 	}
+
+	// On approval, append a signed entry to the replicated ledger — the "receipt →
+	// entry in the replicated ledger" step (ADR-0005). The money already settled in
+	// the authoritative store; this records a tamper-evident audit log. A ledger
+	// append failure does not unwind a settled payment — log and continue.
+	var ledgerHash string
+	if resp.GetApproved() {
+		entry, lerr := a.ledger.AppendPayment(
+			req.UserID, cartTotal(req.Items), itemLabels(req.Items),
+			resp.GetMokaPaymentId(), req.OtherTrxCode)
+		if lerr != nil {
+			log.Printf("gateway: ledger append failed for %s: %v", req.OtherTrxCode, lerr)
+		} else {
+			ledgerHash = base64.StdEncoding.EncodeToString(entry.Hash)
+		}
+	}
+
 	// A declined payment is a valid 200 response with approved=false, not an error.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"approved":               resp.GetApproved(),
 		"remaining_credit_minor": resp.GetRemainingCreditMinor(),
 		"moka_payment_id":        resp.GetMokaPaymentId(),
 		"decline_reason":         resp.GetDeclineReason(),
+		"ledger_hash":            ledgerHash,
+	})
+}
+
+// cartTotal sums the cart for the ledger record (the wallet is authoritative for the
+// deduction; this is the amount we log).
+func cartTotal(items []payItem) int64 {
+	var total int64
+	for _, it := range items {
+		total += it.PriceMinor * int64(it.Quantity)
+	}
+	return total
+}
+
+// itemLabels renders the cart as compact human-readable strings for the audit log.
+func itemLabels(items []payItem) []string {
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		out = append(out, fmt.Sprintf("%dx %s @%d", it.Quantity, it.Name, it.PriceMinor))
+	}
+	return out
+}
+
+// --- ledger views ---
+
+func (a *API) ledgerList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"length":  a.ledger.Len(),
+		"entries": a.ledger.Entries(),
+	})
+}
+
+func (a *API) ledgerVerify(w http.ResponseWriter, _ *http.Request) {
+	if err := a.ledger.Verify(); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"valid": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"valid": true, "length": a.ledger.Len()})
+}
+
+func (a *API) ledgerPubkey(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"public_key": base64.StdEncoding.EncodeToString(a.ledger.PublicKey()),
 	})
 }
 

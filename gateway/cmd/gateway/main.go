@@ -9,6 +9,8 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"log"
 	"net/http"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/httpapi"
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/walletclient"
 )
 
@@ -33,12 +36,21 @@ func main() {
 	defer func() { _ = wallet.Close() }()
 	log.Printf("gateway: wallet client → %s", walletAddr)
 
+	// P2P ledger node. Ephemeral Ed25519 key generated on boot for the demo (load
+	// from a secret in production). Signs each appended payment entry (ADR-0005).
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		log.Fatalf("gateway: ledger key: %v", err)
+	}
+	ledger := ledgerp2p.NewMemNode(priv)
+	log.Println("gateway: ledger node ready (in-process, signed)")
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok","service":"gateway"}`))
 	})
-	httpapi.New(wallet).Routes(mux)
+	httpapi.New(wallet, ledger).Routes(mux)
 
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 
