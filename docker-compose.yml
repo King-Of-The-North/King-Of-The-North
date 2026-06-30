@@ -59,6 +59,10 @@ services:
       args:
         # Browser calls the gateway on the host-exposed port, so use localhost.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    environment:
+      # Server-side (route handlers / server components) reach the gateway over the
+      # internal compose network, not the host.
+      API_URL_INTERNAL: http://gateway:8080
     ports:
       - "3000:3000" # merchant/admin web app
     depends_on:
