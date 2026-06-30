@@ -6,6 +6,18 @@
 **Document owner:** Lead Cloud & Systems Architect
 **Source of record:** NotebookLM notebook *"King Of the North"* (162 sources; conversation `5318793a`)
 
+> **⚠️ Design update — 2026-06-30 (read before §2 and §3).** The consumer experience
+> ships as a **standalone Expo mobile app** (production target = inside the Moka United
+> app). Several §2–§3 decisions are superseded:
+> - **§2 biometric P2P → repurposed.** Auth is now **on-device OpenCV face match**;
+>   biometric **never leaves the phone** (ADR-0006). FHE/SEAL + Shamir biometric
+>   sharding is **descoped**. The P2P layer becomes a **replicated signed money
+>   ledger** (ADR-0005) plus a **DePIN node-reward** economy (ADR-0008) — client
+>   phones run the nodes, cutting Moka cloud OPEX, and earn credit for it.
+> - **§3 "Just Walk Out" gate → replaced for the demo** by **phone barcode
+>   scan-and-go** (ADR-0007). UHF RFID gate + NFC/BLE-to-gate = production vision only.
+> See `docs/decisions/0005–0008` and `docs/plans/mobile-app.md`.
+
 ---
 
 ## 0. Executive Summary
