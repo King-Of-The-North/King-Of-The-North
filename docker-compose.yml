@@ -52,6 +52,18 @@ services:
     depends_on:
       - wallet
 
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # Browser calls the gateway on the host-exposed port, so use localhost.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    ports:
+      - "3000:3000" # merchant/admin web app
+    depends_on:
+      - gateway
+
   # ai-biometric is off the critical path (auth is on-device, ADR-0006) and the
   # service is still empty — re-enable once it has a Dockerfile.
   # ai-biometric:

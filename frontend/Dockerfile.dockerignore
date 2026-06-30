@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/.turbo
+**/.expo
+**/dist
+**/build
+**/__pycache__
+.git
+.github
