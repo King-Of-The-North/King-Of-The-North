@@ -2,8 +2,9 @@
 // backend services, and host of the P2P replicated-ledger nodes + DePIN metering
 // (ADR-0005, ADR-0008).
 //
-// Scaffold: boots an HTTP health endpoint. REST routes (/v1/...) and the P2P node
-// registry are wired in during the build window (docs/plans/mobile-app.md §3).
+// Current milestone: the REST bridge — /v1 routes mapped onto the Wallet gRPC service
+// (deposit, account, pay, node-reward). The P2P node registry + DePIN metering are
+// wired in a later chunk (docs/plans/mobile-app.md §3).
 package main
 
 import (
@@ -15,16 +16,29 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/httpapi"
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/walletclient"
 )
 
 func main() {
 	addr := ":" + env("GATEWAY_HTTP_PORT", "8080")
+	walletAddr := env("WALLET_GRPC_ADDR", "localhost:9091")
+
+	// gRPC client to the Wallet service — every money op routes through it.
+	wallet, err := walletclient.Dial(walletAddr)
+	if err != nil {
+		log.Fatalf("gateway: wallet client: %v", err)
+	}
+	defer func() { _ = wallet.Close() }()
+	log.Printf("gateway: wallet client → %s", walletAddr)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok","service":"gateway"}`))
 	})
+	httpapi.New(wallet).Routes(mux)
 
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 
