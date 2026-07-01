@@ -22,6 +22,7 @@ import (
 
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/catalog"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/charges"
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/devices"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/httpapi"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/walletclient"
@@ -76,7 +77,11 @@ func main() {
 		catalog.Product{MerchantID: "mer_demo", Barcode: "8690000000031", Name: "T-Shirt", PriceMinor: 29900},
 	)
 
-	httpapi.New(wallet, ledger, chargeStore, catalogStore, depin).Routes(mux)
+	// Device registry: binds each user to their phones' Ed25519 keys, used to
+	// authenticate the P2P WebSocket handshake (ADR-0006/0010). In-memory for the demo.
+	deviceStore := devices.NewStore()
+
+	httpapi.New(wallet, ledger, chargeStore, catalogStore, deviceStore, depin).Routes(mux)
 
 	// CORS so the browser-based merchant/admin web app can call the Gateway (ADR-0014).
 	corsOrigin := env("GATEWAY_CORS_ORIGIN", "*")

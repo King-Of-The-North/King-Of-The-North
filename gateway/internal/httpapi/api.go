@@ -17,6 +17,7 @@ import (
 
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/catalog"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/charges"
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/devices"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
 
@@ -40,6 +41,8 @@ type Ledger interface {
 	Nodes() []ledgerp2p.NodeStatus
 	KillReplica(id int) bool
 	AddReplica(owner string)
+	AddWSReplica(owner string) (int, []ledgerp2p.Entry, chan ledgerp2p.Entry)
+	AckWSReplica(id, seq int)
 	Meter() []ledgerp2p.NodeMeter
 	ClearPending(id, units int)
 }
@@ -58,6 +61,7 @@ type API struct {
 	ledger  Ledger
 	charges *charges.Store
 	catalog *catalog.Store
+	devices *devices.Store
 	depin   DepinConfig
 
 	mu                sync.Mutex
@@ -65,10 +69,10 @@ type API struct {
 	totalCloudAvoided int64 // lifetime cloud cost avoided (the value created)
 }
 
-// New builds the API over a Wallet client, the P2P ledger cluster, and the online-POS
-// charge store.
-func New(wallet walletv1.WalletServiceClient, ledger Ledger, store *charges.Store, cat *catalog.Store, depin DepinConfig) *API {
-	return &API{wallet: wallet, ledger: ledger, charges: store, catalog: cat, depin: depin}
+// New builds the API over a Wallet client, the P2P ledger cluster, the online-POS
+// charge store, the merchant catalog, and the device registry.
+func New(wallet walletv1.WalletServiceClient, ledger Ledger, store *charges.Store, cat *catalog.Store, dev *devices.Store, depin DepinConfig) *API {
+	return &API{wallet: wallet, ledger: ledger, charges: store, catalog: cat, devices: dev, depin: depin}
 }
 
 // Routes registers the REST endpoints on a mux (Go 1.22+ method+path patterns).
@@ -88,6 +92,9 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/depin/stats", a.depinStats)
 	mux.HandleFunc("GET /v1/depin/earnings/{user}", a.depinEarnings)
 	mux.HandleFunc("POST /v1/depin/settle", a.depinSettle)
+	// Device registry + P2P WebSocket node (phones as real nodes, ADR-0008/0010)
+	mux.HandleFunc("POST /v1/devices/enroll", a.deviceEnroll)
+	mux.HandleFunc("GET /v1/ledger/ws", a.ledgerWS)
 	// Online POS (e-commerce charges, ADR-0014)
 	mux.HandleFunc("GET /v1/merchants", a.merchantsList)
 	mux.HandleFunc("GET /v1/merchants/{id}/charges", a.merchantCharges)
@@ -446,6 +453,42 @@ func (a *API) depinStats(w http.ResponseWriter, _ *http.Request) {
 		"pending_reward_minor":       pendingReward,
 		"total_rewarded_minor":       totalRewarded,
 		"total_cloud_avoided_minor":  totalAvoided,
+	})
+}
+
+// --- device enrollment (P2P WebSocket auth) ---
+
+type enrollRequest struct {
+	UserID       string `json:"user_id"`
+	DevicePubKey string `json:"device_pubkey"` // base64-std Ed25519 public key
+}
+
+// deviceEnroll binds a phone's Ed25519 device public key to a user, so the P2P
+// WebSocket handshake can later prove that a connecting phone is that user's device.
+// Only the public key is stored; the private key never leaves the phone (ADR-0006/0010).
+// For the demo enrollment is self-asserted; production would gate it behind KYC/OTP.
+func (a *API) deviceEnroll(w http.ResponseWriter, r *http.Request) {
+	var req enrollRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.UserID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "user_id required"})
+		return
+	}
+	pub, err := base64.StdEncoding.DecodeString(req.DevicePubKey)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "device_pubkey must be base64"})
+		return
+	}
+	if err := a.devices.Enroll(req.UserID, pub); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"enrolled":     true,
+		"user_id":      req.UserID,
+		"device_count": a.devices.Count(req.UserID),
 	})
 }
 
