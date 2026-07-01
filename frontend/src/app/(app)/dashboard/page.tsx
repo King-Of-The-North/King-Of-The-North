@@ -26,12 +26,12 @@ export default async function DashboardPage() {
       <div className="flex items-end justify-between">
         <div className="flex flex-col gap-2">
           <Text variant="caption" tone="tertiary">
-            Online POS
+            Store
           </Text>
-          <Heading level="title">Charges</Heading>
+          <Heading level="title">Payments</Heading>
         </div>
-        <Link href="/pos">
-          <Button variant="accent">New charge</Button>
+        <Link href="/catalog">
+          <Button variant="ghost">Manage catalog</Button>
         </Link>
       </div>
 
@@ -54,9 +54,9 @@ export default async function DashboardPage() {
 
       {charges.length === 0 ? (
         <Surface className="flex flex-col items-center gap-2 py-12">
-          <Text tone="secondary">No charges yet.</Text>
-          <Link href="/pos">
-            <Button variant="ghost">Create your first charge</Button>
+          <Text tone="secondary">No payments yet.</Text>
+          <Link href="/catalog">
+            <Button variant="ghost">Set up your catalog</Button>
           </Link>
         </Surface>
       ) : (

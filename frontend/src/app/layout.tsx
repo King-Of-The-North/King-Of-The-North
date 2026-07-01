@@ -29,7 +29,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${neueHaas.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      data-theme="light"
+      style={{ colorScheme: "light" }}
+      className={`${neueHaas.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

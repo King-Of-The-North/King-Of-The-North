@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/catalog"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/charges"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/httpapi"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
@@ -68,7 +69,14 @@ func main() {
 		charges.Merchant{ID: "mer_kahve", Name: "Kuzey Kahve", Phone: "+905550000002"},
 	)
 
-	httpapi.New(wallet, ledger, chargeStore, depin).Routes(mux)
+	// Merchant catalog: seeded products (barcode → price) for scan-and-go (ADR-0007).
+	catalogStore := catalog.NewStore(
+		catalog.Product{MerchantID: "mer_kahve", Barcode: "8690000000017", Name: "Latte", PriceMinor: 5500},
+		catalog.Product{MerchantID: "mer_kahve", Barcode: "8690000000024", Name: "Filter Coffee", PriceMinor: 4500},
+		catalog.Product{MerchantID: "mer_demo", Barcode: "8690000000031", Name: "T-Shirt", PriceMinor: 29900},
+	)
+
+	httpapi.New(wallet, ledger, chargeStore, catalogStore, depin).Routes(mux)
 
 	// CORS so the browser-based merchant/admin web app can call the Gateway (ADR-0014).
 	corsOrigin := env("GATEWAY_CORS_ORIGIN", "*")

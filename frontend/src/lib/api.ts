@@ -54,6 +54,14 @@ export type Charge = {
   expires_at: string;
 };
 
+export type Product = {
+  id: string;
+  merchant_id: string;
+  barcode: string;
+  name: string;
+  price_minor: number;
+};
+
 export type Account = {
   user_id: string;
   principal_minor: number;
@@ -114,6 +122,16 @@ export const api = {
     ),
 
   cancelCharge: (id: string) => req<Charge>(`/v1/charges/${id}/cancel`, { method: "POST" }),
+
+  // catalog (barcodes → price for scan-and-go, ADR-0007)
+  products: (merchantId: string) =>
+    req<{ products: Product[] }>(`/v1/merchants/${merchantId}/products`).then((r) => r.products ?? []),
+
+  createProduct: (merchantId: string, p: { barcode: string; name: string; price_minor: number }) =>
+    req<Product>(`/v1/merchants/${merchantId}/products`, { method: "POST", body: JSON.stringify(p) }),
+
+  deleteProduct: (id: string) =>
+    req<{ deleted: string }>(`/v1/products/${id}`, { method: "DELETE" }),
 
   // wallet
   account: (userId: string) => req<Account>(`/v1/accounts/${userId}`),

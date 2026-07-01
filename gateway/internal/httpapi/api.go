@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/king-of-the-north/king-of-the-north/gateway/internal/catalog"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/charges"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
@@ -56,6 +57,7 @@ type API struct {
 	wallet  walletv1.WalletServiceClient
 	ledger  Ledger
 	charges *charges.Store
+	catalog *catalog.Store
 	depin   DepinConfig
 
 	mu                sync.Mutex
@@ -65,8 +67,8 @@ type API struct {
 
 // New builds the API over a Wallet client, the P2P ledger cluster, and the online-POS
 // charge store.
-func New(wallet walletv1.WalletServiceClient, ledger Ledger, store *charges.Store, depin DepinConfig) *API {
-	return &API{wallet: wallet, ledger: ledger, charges: store, depin: depin}
+func New(wallet walletv1.WalletServiceClient, ledger Ledger, store *charges.Store, cat *catalog.Store, depin DepinConfig) *API {
+	return &API{wallet: wallet, ledger: ledger, charges: store, catalog: cat, depin: depin}
 }
 
 // Routes registers the REST endpoints on a mux (Go 1.22+ method+path patterns).
@@ -90,6 +92,11 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/charges/{id}", a.chargeGet)
 	mux.HandleFunc("POST /v1/charges/{id}/approve", a.chargeApprove)
 	mux.HandleFunc("POST /v1/charges/{id}/cancel", a.chargeCancel)
+	// Merchant catalog (barcodes → price for scan-and-go, ADR-0007)
+	mux.HandleFunc("GET /v1/merchants/{id}/products", a.productsList)
+	mux.HandleFunc("POST /v1/merchants/{id}/products", a.productCreate)
+	mux.HandleFunc("DELETE /v1/products/{id}", a.productDelete)
+	mux.HandleFunc("GET /v1/products/barcode/{barcode}", a.productByBarcode)
 }
 
 // --- deposit -> CalculateLimit ---
@@ -555,6 +562,55 @@ func chargeItemsToPay(items []charges.Item) []payItem {
 		out = append(out, payItem{SKU: it.SKU, Name: it.Name, PriceMinor: it.PriceMinor, Quantity: it.Quantity})
 	}
 	return out
+}
+
+// --- merchant catalog (ADR-0007) ---
+
+func (a *API) productsList(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"products": a.catalog.ForMerchant(r.PathValue("id")),
+	})
+}
+
+type productCreateRequest struct {
+	Barcode    string `json:"barcode"`
+	Name       string `json:"name"`
+	PriceMinor int64  `json:"price_minor"`
+}
+
+func (a *API) productCreate(w http.ResponseWriter, r *http.Request) {
+	var req productCreateRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	p, err := a.catalog.Create(r.PathValue("id"), req.Barcode, req.Name, req.PriceMinor)
+	if err != nil {
+		code := http.StatusBadRequest
+		if errors.Is(err, catalog.ErrBarcodeTaken) {
+			code = http.StatusConflict
+		}
+		writeJSON(w, code, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, p)
+}
+
+func (a *API) productDelete(w http.ResponseWriter, r *http.Request) {
+	if err := a.catalog.Delete(r.PathValue("id")); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": r.PathValue("id")})
+}
+
+// productByBarcode is the scan-and-go price lookup: a scanned barcode → product.
+func (a *API) productByBarcode(w http.ResponseWriter, r *http.Request) {
+	p, err := a.catalog.ByBarcode(r.PathValue("barcode"))
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
 }
 
 // --- node-reward -> CreditNodeReward ---
