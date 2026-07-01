@@ -25,6 +25,15 @@ const (
 	WalletService_CreditNodeReward_FullMethodName    = "/kotn.wallet.v1.WalletService/CreditNodeReward"
 	WalletService_Transfer_FullMethodName            = "/kotn.wallet.v1.WalletService/Transfer"
 	WalletService_ListTransactions_FullMethodName    = "/kotn.wallet.v1.WalletService/ListTransactions"
+	WalletService_EnrollDevice_FullMethodName        = "/kotn.wallet.v1.WalletService/EnrollDevice"
+	WalletService_ListDevices_FullMethodName         = "/kotn.wallet.v1.WalletService/ListDevices"
+	WalletService_RevokeDevice_FullMethodName        = "/kotn.wallet.v1.WalletService/RevokeDevice"
+	WalletService_RebindDevices_FullMethodName       = "/kotn.wallet.v1.WalletService/RebindDevices"
+	WalletService_IssueVoucher_FullMethodName        = "/kotn.wallet.v1.WalletService/IssueVoucher"
+	WalletService_RedeemVoucher_FullMethodName       = "/kotn.wallet.v1.WalletService/RedeemVoucher"
+	WalletService_ExpireVouchers_FullMethodName      = "/kotn.wallet.v1.WalletService/ExpireVouchers"
+	WalletService_ListVouchers_FullMethodName        = "/kotn.wallet.v1.WalletService/ListVouchers"
+	WalletService_GetVoucherPubKey_FullMethodName    = "/kotn.wallet.v1.WalletService/GetVoucherPubKey"
 )
 
 // WalletServiceClient is the client API for WalletService service.
@@ -47,6 +56,19 @@ type WalletServiceClient interface {
 	Transfer(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error)
 	// Gateway -> Wallet: list a user's transactions, newest first (receipts/history).
 	ListTransactions(ctx context.Context, in *ListTransactionsRequest, opts ...grpc.CallOption) (*ListTransactionsResponse, error)
+	// Device registry (P2P WebSocket + signed-pay auth; ADR-0006/0010).
+	EnrollDevice(ctx context.Context, in *EnrollDeviceRequest, opts ...grpc.CallOption) (*DeviceList, error)
+	ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*DeviceList, error)
+	RevokeDevice(ctx context.Context, in *RevokeDeviceRequest, opts ...grpc.CallOption) (*DeviceList, error)
+	// Account recovery / device rebind: revoke all keys, enroll a new one (ADR-0011).
+	RebindDevices(ctx context.Context, in *RebindDevicesRequest, opts ...grpc.CallOption) (*DeviceList, error)
+	// Offline spending vouchers (capped, pre-reserved; ADR-0012).
+	IssueVoucher(ctx context.Context, in *IssueVoucherRequest, opts ...grpc.CallOption) (*Voucher, error)
+	RedeemVoucher(ctx context.Context, in *RedeemVoucherRequest, opts ...grpc.CallOption) (*Voucher, error)
+	ExpireVouchers(ctx context.Context, in *ExpireVouchersRequest, opts ...grpc.CallOption) (*ExpireVouchersResponse, error)
+	ListVouchers(ctx context.Context, in *ListVouchersRequest, opts ...grpc.CallOption) (*VoucherList, error)
+	// The wallet's voucher-signing public key, so a voucher can be verified offline.
+	GetVoucherPubKey(ctx context.Context, in *GetVoucherPubKeyRequest, opts ...grpc.CallOption) (*GetVoucherPubKeyResponse, error)
 }
 
 type walletServiceClient struct {
@@ -117,6 +139,96 @@ func (c *walletServiceClient) ListTransactions(ctx context.Context, in *ListTran
 	return out, nil
 }
 
+func (c *walletServiceClient) EnrollDevice(ctx context.Context, in *EnrollDeviceRequest, opts ...grpc.CallOption) (*DeviceList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeviceList)
+	err := c.cc.Invoke(ctx, WalletService_EnrollDevice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*DeviceList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeviceList)
+	err := c.cc.Invoke(ctx, WalletService_ListDevices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) RevokeDevice(ctx context.Context, in *RevokeDeviceRequest, opts ...grpc.CallOption) (*DeviceList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeviceList)
+	err := c.cc.Invoke(ctx, WalletService_RevokeDevice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) RebindDevices(ctx context.Context, in *RebindDevicesRequest, opts ...grpc.CallOption) (*DeviceList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeviceList)
+	err := c.cc.Invoke(ctx, WalletService_RebindDevices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) IssueVoucher(ctx context.Context, in *IssueVoucherRequest, opts ...grpc.CallOption) (*Voucher, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Voucher)
+	err := c.cc.Invoke(ctx, WalletService_IssueVoucher_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) RedeemVoucher(ctx context.Context, in *RedeemVoucherRequest, opts ...grpc.CallOption) (*Voucher, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Voucher)
+	err := c.cc.Invoke(ctx, WalletService_RedeemVoucher_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) ExpireVouchers(ctx context.Context, in *ExpireVouchersRequest, opts ...grpc.CallOption) (*ExpireVouchersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExpireVouchersResponse)
+	err := c.cc.Invoke(ctx, WalletService_ExpireVouchers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) ListVouchers(ctx context.Context, in *ListVouchersRequest, opts ...grpc.CallOption) (*VoucherList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VoucherList)
+	err := c.cc.Invoke(ctx, WalletService_ListVouchers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) GetVoucherPubKey(ctx context.Context, in *GetVoucherPubKeyRequest, opts ...grpc.CallOption) (*GetVoucherPubKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetVoucherPubKeyResponse)
+	err := c.cc.Invoke(ctx, WalletService_GetVoucherPubKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WalletServiceServer is the server API for WalletService service.
 // All implementations should embed UnimplementedWalletServiceServer
 // for forward compatibility.
@@ -137,6 +249,19 @@ type WalletServiceServer interface {
 	Transfer(context.Context, *TransferRequest) (*TransferResponse, error)
 	// Gateway -> Wallet: list a user's transactions, newest first (receipts/history).
 	ListTransactions(context.Context, *ListTransactionsRequest) (*ListTransactionsResponse, error)
+	// Device registry (P2P WebSocket + signed-pay auth; ADR-0006/0010).
+	EnrollDevice(context.Context, *EnrollDeviceRequest) (*DeviceList, error)
+	ListDevices(context.Context, *ListDevicesRequest) (*DeviceList, error)
+	RevokeDevice(context.Context, *RevokeDeviceRequest) (*DeviceList, error)
+	// Account recovery / device rebind: revoke all keys, enroll a new one (ADR-0011).
+	RebindDevices(context.Context, *RebindDevicesRequest) (*DeviceList, error)
+	// Offline spending vouchers (capped, pre-reserved; ADR-0012).
+	IssueVoucher(context.Context, *IssueVoucherRequest) (*Voucher, error)
+	RedeemVoucher(context.Context, *RedeemVoucherRequest) (*Voucher, error)
+	ExpireVouchers(context.Context, *ExpireVouchersRequest) (*ExpireVouchersResponse, error)
+	ListVouchers(context.Context, *ListVouchersRequest) (*VoucherList, error)
+	// The wallet's voucher-signing public key, so a voucher can be verified offline.
+	GetVoucherPubKey(context.Context, *GetVoucherPubKeyRequest) (*GetVoucherPubKeyResponse, error)
 }
 
 // UnimplementedWalletServiceServer should be embedded to have
@@ -163,6 +288,33 @@ func (UnimplementedWalletServiceServer) Transfer(context.Context, *TransferReque
 }
 func (UnimplementedWalletServiceServer) ListTransactions(context.Context, *ListTransactionsRequest) (*ListTransactionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTransactions not implemented")
+}
+func (UnimplementedWalletServiceServer) EnrollDevice(context.Context, *EnrollDeviceRequest) (*DeviceList, error) {
+	return nil, status.Error(codes.Unimplemented, "method EnrollDevice not implemented")
+}
+func (UnimplementedWalletServiceServer) ListDevices(context.Context, *ListDevicesRequest) (*DeviceList, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDevices not implemented")
+}
+func (UnimplementedWalletServiceServer) RevokeDevice(context.Context, *RevokeDeviceRequest) (*DeviceList, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeDevice not implemented")
+}
+func (UnimplementedWalletServiceServer) RebindDevices(context.Context, *RebindDevicesRequest) (*DeviceList, error) {
+	return nil, status.Error(codes.Unimplemented, "method RebindDevices not implemented")
+}
+func (UnimplementedWalletServiceServer) IssueVoucher(context.Context, *IssueVoucherRequest) (*Voucher, error) {
+	return nil, status.Error(codes.Unimplemented, "method IssueVoucher not implemented")
+}
+func (UnimplementedWalletServiceServer) RedeemVoucher(context.Context, *RedeemVoucherRequest) (*Voucher, error) {
+	return nil, status.Error(codes.Unimplemented, "method RedeemVoucher not implemented")
+}
+func (UnimplementedWalletServiceServer) ExpireVouchers(context.Context, *ExpireVouchersRequest) (*ExpireVouchersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExpireVouchers not implemented")
+}
+func (UnimplementedWalletServiceServer) ListVouchers(context.Context, *ListVouchersRequest) (*VoucherList, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListVouchers not implemented")
+}
+func (UnimplementedWalletServiceServer) GetVoucherPubKey(context.Context, *GetVoucherPubKeyRequest) (*GetVoucherPubKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetVoucherPubKey not implemented")
 }
 func (UnimplementedWalletServiceServer) testEmbeddedByValue() {}
 
@@ -292,6 +444,168 @@ func _WalletService_ListTransactions_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WalletService_EnrollDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnrollDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).EnrollDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_EnrollDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).EnrollDevice(ctx, req.(*EnrollDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_ListDevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDevicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).ListDevices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_ListDevices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).ListDevices(ctx, req.(*ListDevicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_RevokeDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).RevokeDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_RevokeDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).RevokeDevice(ctx, req.(*RevokeDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_RebindDevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RebindDevicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).RebindDevices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_RebindDevices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).RebindDevices(ctx, req.(*RebindDevicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_IssueVoucher_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IssueVoucherRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).IssueVoucher(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_IssueVoucher_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).IssueVoucher(ctx, req.(*IssueVoucherRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_RedeemVoucher_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RedeemVoucherRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).RedeemVoucher(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_RedeemVoucher_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).RedeemVoucher(ctx, req.(*RedeemVoucherRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_ExpireVouchers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExpireVouchersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).ExpireVouchers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_ExpireVouchers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).ExpireVouchers(ctx, req.(*ExpireVouchersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_ListVouchers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVouchersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).ListVouchers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_ListVouchers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).ListVouchers(ctx, req.(*ListVouchersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_GetVoucherPubKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVoucherPubKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).GetVoucherPubKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_GetVoucherPubKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).GetVoucherPubKey(ctx, req.(*GetVoucherPubKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WalletService_ServiceDesc is the grpc.ServiceDesc for WalletService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -322,6 +636,42 @@ var WalletService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTransactions",
 			Handler:    _WalletService_ListTransactions_Handler,
+		},
+		{
+			MethodName: "EnrollDevice",
+			Handler:    _WalletService_EnrollDevice_Handler,
+		},
+		{
+			MethodName: "ListDevices",
+			Handler:    _WalletService_ListDevices_Handler,
+		},
+		{
+			MethodName: "RevokeDevice",
+			Handler:    _WalletService_RevokeDevice_Handler,
+		},
+		{
+			MethodName: "RebindDevices",
+			Handler:    _WalletService_RebindDevices_Handler,
+		},
+		{
+			MethodName: "IssueVoucher",
+			Handler:    _WalletService_IssueVoucher_Handler,
+		},
+		{
+			MethodName: "RedeemVoucher",
+			Handler:    _WalletService_RedeemVoucher_Handler,
+		},
+		{
+			MethodName: "ExpireVouchers",
+			Handler:    _WalletService_ExpireVouchers_Handler,
+		},
+		{
+			MethodName: "ListVouchers",
+			Handler:    _WalletService_ListVouchers_Handler,
+		},
+		{
+			MethodName: "GetVoucherPubKey",
+			Handler:    _WalletService_GetVoucherPubKey_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

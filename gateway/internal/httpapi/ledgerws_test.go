@@ -8,15 +8,54 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"google.golang.org/grpc"
 
-	"github.com/king-of-the-north/king-of-the-north/gateway/internal/devices"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
+	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
 )
+
+// fakeWallet is a minimal in-test WalletServiceClient that serves the device registry
+// from memory. The embedded nil interface supplies the many RPCs these tests don't call.
+type fakeWallet struct {
+	walletv1.WalletServiceClient
+	mu      sync.Mutex
+	devices map[string][][]byte // user_id -> active pubkeys
+}
+
+func newFakeWallet() *fakeWallet { return &fakeWallet{devices: map[string][][]byte{}} }
+
+func (f *fakeWallet) enroll(userID string, pub []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.devices[userID] = append(f.devices[userID], pub)
+}
+
+func (f *fakeWallet) EnrollDevice(_ context.Context, in *walletv1.EnrollDeviceRequest, _ ...grpc.CallOption) (*walletv1.DeviceList, error) {
+	f.enroll(in.GetUserId(), in.GetDevicePubkey())
+	return f.ListDevices(context.Background(), &walletv1.ListDevicesRequest{UserId: in.GetUserId()})
+}
+
+func (f *fakeWallet) ListDevices(_ context.Context, in *walletv1.ListDevicesRequest, _ ...grpc.CallOption) (*walletv1.DeviceList, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := &walletv1.DeviceList{UserId: in.GetUserId()}
+	for _, p := range f.devices[in.GetUserId()] {
+		out.Devices = append(out.Devices, &walletv1.Device{DevicePubkey: p, Active: true})
+	}
+	return out, nil
+}
+
+// ValidateTransaction always approves — the signed-pay tests care about the signature
+// gate in the gateway, not the wallet's deduct logic (covered by the wallet's own tests).
+func (f *fakeWallet) ValidateTransaction(_ context.Context, _ *walletv1.ValidateTransactionRequest, _ ...grpc.CallOption) (*walletv1.ValidateTransactionResponse, error) {
+	return &walletv1.ValidateTransactionResponse{Approved: true, RemainingCreditMinor: 999, MokaPaymentId: "mock"}, nil
+}
 
 // TestLedgerWSHandshakeReplicateAck drives the whole phone-node path over a real
 // WebSocket: signed device handshake -> welcome -> back-fill -> live entry -> ACK ->
@@ -24,8 +63,8 @@ import (
 func TestLedgerWSHandshakeReplicateAck(t *testing.T) {
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	cluster := ledgerp2p.NewCluster(priv, 0)
-	dev := devices.NewStore()
-	api := New(nil, cluster, nil, nil, dev, DepinConfig{RewardPerEntryMinor: 5, CloudCostPerEntryMinor: 12})
+	fake := newFakeWallet()
+	api := New(fake, cluster, nil, nil, DepinConfig{RewardPerEntryMinor: 5, CloudCostPerEntryMinor: 12})
 	mux := http.NewServeMux()
 	api.Routes(mux)
 	srv := httptest.NewServer(mux)
@@ -33,9 +72,7 @@ func TestLedgerWSHandshakeReplicateAck(t *testing.T) {
 
 	const userID = "user-1"
 	dpub, dpriv, _ := ed25519.GenerateKey(rand.Reader)
-	if err := dev.Enroll(userID, dpub); err != nil {
-		t.Fatalf("enroll: %v", err)
-	}
+	fake.enroll(userID, dpub)
 	// One entry exists before the phone connects → it must arrive as back-fill.
 	if _, err := cluster.AppendPayment(userID, 1000, []string{"pre"}, "", "pre-1"); err != nil {
 		t.Fatalf("pre append: %v", err)
@@ -124,7 +161,7 @@ func TestLedgerWSHandshakeReplicateAck(t *testing.T) {
 func TestLedgerWSRejectsUnenrolledDevice(t *testing.T) {
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	cluster := ledgerp2p.NewCluster(priv, 0)
-	api := New(nil, cluster, nil, nil, devices.NewStore(), DepinConfig{})
+	api := New(newFakeWallet(), cluster, nil, nil, DepinConfig{})
 	mux := http.NewServeMux()
 	api.Routes(mux)
 	srv := httptest.NewServer(mux)

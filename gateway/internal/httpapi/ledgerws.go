@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
+	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
 )
 
 // wsPingInterval is how often the server pings an idle phone socket to keep it alive
@@ -170,9 +172,9 @@ func (a *API) wsHandshake(ctx context.Context, conn *websocket.Conn) (string, bo
 	if err != nil {
 		return "", false
 	}
-	// Both must hold: the key is enrolled for this user, AND the phone signed our nonce
-	// with the matching private key (proof of possession).
-	if !a.devices.IsEnrolled(auth.UserID, pub) {
+	// Both must hold: the key is an active enrolled device for this user (looked up in
+	// the wallet), AND the phone signed our nonce with the matching private key.
+	if !a.deviceEnrolled(ctx, auth.UserID, pub) {
 		log.Printf("gateway: ws handshake: device not enrolled for %s", auth.UserID)
 		return "", false
 	}
@@ -181,6 +183,22 @@ func (a *API) wsHandshake(ctx context.Context, conn *websocket.Conn) (string, bo
 		return "", false
 	}
 	return auth.UserID, true
+}
+
+// deviceEnrolled reports whether pub is an active device for userID, per the wallet
+// registry. Any lookup error is treated as "not enrolled" (fail closed).
+func (a *API) deviceEnrolled(ctx context.Context, userID string, pub []byte) bool {
+	resp, err := a.wallet.ListDevices(ctx, &walletv1.ListDevicesRequest{UserId: userID})
+	if err != nil {
+		log.Printf("gateway: list devices for %s: %v", userID, err)
+		return false
+	}
+	for _, d := range resp.GetDevices() {
+		if bytes.Equal(d.GetDevicePubkey(), pub) {
+			return true
+		}
+	}
+	return false
 }
 
 // entryFrame wraps a ledger entry in the "entry" message envelope.

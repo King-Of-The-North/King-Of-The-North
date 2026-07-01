@@ -5,6 +5,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -12,12 +13,12 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/catalog"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/charges"
-	"github.com/king-of-the-north/king-of-the-north/gateway/internal/devices"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	walletv1 "github.com/king-of-the-north/king-of-the-north/gen"
 
@@ -61,7 +62,6 @@ type API struct {
 	ledger  Ledger
 	charges *charges.Store
 	catalog *catalog.Store
-	devices *devices.Store
 	depin   DepinConfig
 
 	mu                sync.Mutex
@@ -70,9 +70,10 @@ type API struct {
 }
 
 // New builds the API over a Wallet client, the P2P ledger cluster, the online-POS
-// charge store, the merchant catalog, and the device registry.
-func New(wallet walletv1.WalletServiceClient, ledger Ledger, store *charges.Store, cat *catalog.Store, dev *devices.Store, depin DepinConfig) *API {
-	return &API{wallet: wallet, ledger: ledger, charges: store, catalog: cat, devices: dev, depin: depin}
+// charge store, and the merchant catalog. The device registry now lives in the wallet
+// (Postgres), reached through the wallet client.
+func New(wallet walletv1.WalletServiceClient, ledger Ledger, store *charges.Store, cat *catalog.Store, depin DepinConfig) *API {
+	return &API{wallet: wallet, ledger: ledger, charges: store, catalog: cat, depin: depin}
 }
 
 // Routes registers the REST endpoints on a mux (Go 1.22+ method+path patterns).
@@ -81,6 +82,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/accounts/{id}", a.account)
 	mux.HandleFunc("GET /v1/accounts/{id}/transactions", a.accountTransactions)
 	mux.HandleFunc("POST /v1/pay", a.pay)
+	mux.HandleFunc("POST /v1/pay/signed", a.paySigned)
 	mux.HandleFunc("POST /v1/transfer", a.transfer)
 	mux.HandleFunc("POST /v1/node-reward", a.nodeReward)
 	mux.HandleFunc("GET /v1/ledger", a.ledgerList)
@@ -94,7 +96,14 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/depin/settle", a.depinSettle)
 	// Device registry + P2P WebSocket node (phones as real nodes, ADR-0008/0010)
 	mux.HandleFunc("POST /v1/devices/enroll", a.deviceEnroll)
+	mux.HandleFunc("POST /v1/recovery/rebind", a.recoveryRebind)
 	mux.HandleFunc("GET /v1/ledger/ws", a.ledgerWS)
+	// Offline spending vouchers (ADR-0012)
+	mux.HandleFunc("POST /v1/vouchers", a.voucherIssue)
+	mux.HandleFunc("POST /v1/vouchers/{id}/redeem", a.voucherRedeem)
+	mux.HandleFunc("POST /v1/vouchers/expire", a.voucherExpire)
+	mux.HandleFunc("GET /v1/vouchers/pubkey", a.voucherPubkey)
+	mux.HandleFunc("GET /v1/accounts/{id}/vouchers", a.accountVouchers)
 	// Online POS (e-commerce charges, ADR-0014)
 	mux.HandleFunc("GET /v1/merchants", a.merchantsList)
 	mux.HandleFunc("GET /v1/merchants/{id}/charges", a.merchantCharges)
@@ -239,6 +248,73 @@ func (a *API) pay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// A declined payment is a valid 200 response with approved=false, not an error.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"approved":               res.approved,
+		"remaining_credit_minor": res.remaining,
+		"moka_payment_id":        res.mokaID,
+		"decline_reason":         res.declineReason,
+		"ledger_hash":            res.ledgerHash,
+	})
+}
+
+// --- signed pay (device-authenticated) ---
+
+type paySignedRequest struct {
+	UserID       string    `json:"user_id"`
+	Items        []payItem `json:"items"`
+	OtherTrxCode string    `json:"other_trx_code"`
+	DevicePubKey string    `json:"device_pubkey"` // base64-std Ed25519 public key
+	Sig          string    `json:"sig"`           // base64-std signature over the canonical cart
+}
+
+// canonicalCart is the exact byte string a phone signs to authorize a spend. It is
+// deterministic and reproducible on-device:
+//
+//	"<user_id>|<other_trx_code>|<total_minor>|<sku>:<qty>,<sku>:<qty>,..."
+//
+// (item order as sent; total via cartTotal). The signature binds the payer, the cart,
+// and the idempotency code so it can't be replayed for a different cart.
+func canonicalCart(userID, otherTrxCode string, items []payItem) []byte {
+	parts := make([]string, 0, len(items))
+	for _, it := range items {
+		parts = append(parts, fmt.Sprintf("%s:%d", it.SKU, it.Quantity))
+	}
+	return []byte(fmt.Sprintf("%s|%s|%d|%s", userID, otherTrxCode, cartTotal(items), strings.Join(parts, ",")))
+}
+
+// paySigned is the on-device face-pay path: the phone signs the cart with its enrolled
+// device key, proving an authenticated human authorized this exact spend before any money
+// moves. The gateway verifies the signature against the wallet's device registry, then
+// runs the same settle() money path as /v1/pay. The plain /v1/pay stays for web POS.
+func (a *API) paySigned(w http.ResponseWriter, r *http.Request) {
+	var req paySignedRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	pub, err := base64.StdEncoding.DecodeString(req.DevicePubKey)
+	if err != nil || len(pub) != ed25519.PublicKeySize {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "device_pubkey must be a base64 Ed25519 key"})
+		return
+	}
+	sig, err := base64.StdEncoding.DecodeString(req.Sig)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "sig must be base64"})
+		return
+	}
+	if !a.deviceEnrolled(r.Context(), req.UserID, pub) {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "device not enrolled"})
+		return
+	}
+	if !ed25519.Verify(ed25519.PublicKey(pub), canonicalCart(req.UserID, req.OtherTrxCode, req.Items), sig) {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "bad signature"})
+		return
+	}
+
+	res, err := a.settle(r.Context(), req.UserID, req.Items, req.OtherTrxCode)
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"approved":               res.approved,
 		"remaining_credit_minor": res.remaining,
@@ -463,10 +539,10 @@ type enrollRequest struct {
 	DevicePubKey string `json:"device_pubkey"` // base64-std Ed25519 public key
 }
 
-// deviceEnroll binds a phone's Ed25519 device public key to a user, so the P2P
-// WebSocket handshake can later prove that a connecting phone is that user's device.
-// Only the public key is stored; the private key never leaves the phone (ADR-0006/0010).
-// For the demo enrollment is self-asserted; production would gate it behind KYC/OTP.
+// deviceEnroll binds a phone's Ed25519 device public key to a user (persisted in the
+// wallet), so the P2P WebSocket handshake and signed-pay can later prove that a
+// connecting phone is that user's device. Only the public key is stored; the private key
+// never leaves the phone (ADR-0006/0010). Enrollment is self-asserted for the demo.
 func (a *API) deviceEnroll(w http.ResponseWriter, r *http.Request) {
 	var req enrollRequest
 	if !decode(w, r, &req) {
@@ -481,14 +557,55 @@ func (a *API) deviceEnroll(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "device_pubkey must be base64"})
 		return
 	}
-	if err := a.devices.Enroll(req.UserID, pub); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+	resp, err := a.wallet.EnrollDevice(r.Context(), &walletv1.EnrollDeviceRequest{
+		UserId:       req.UserID,
+		DevicePubkey: pub,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"enrolled":     true,
 		"user_id":      req.UserID,
-		"device_count": a.devices.Count(req.UserID),
+		"device_count": len(resp.GetDevices()),
+	})
+}
+
+type rebindRequest struct {
+	UserID          string `json:"user_id"`
+	NewDevicePubKey string `json:"new_device_pubkey"` // base64-std Ed25519 public key
+}
+
+// recoveryRebind is account recovery for a lost/new phone (ADR-0011): revoke every
+// existing device key and enroll a new one. Money is anchored to user_id and untouched.
+// Recovery is self-asserted for the demo — production gates it behind an identity proof.
+func (a *API) recoveryRebind(w http.ResponseWriter, r *http.Request) {
+	var req rebindRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.UserID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "user_id required"})
+		return
+	}
+	pub, err := base64.StdEncoding.DecodeString(req.NewDevicePubKey)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "new_device_pubkey must be base64"})
+		return
+	}
+	resp, err := a.wallet.RebindDevices(r.Context(), &walletv1.RebindDevicesRequest{
+		UserId:          req.UserID,
+		NewDevicePubkey: pub,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"rebound":      true,
+		"user_id":      req.UserID,
+		"device_count": len(resp.GetDevices()),
 	})
 }
 
@@ -530,10 +647,11 @@ func (a *API) depinEarnings(w http.ResponseWriter, r *http.Request) {
 // replicated-entry units into wallet credit via CreditNodeReward (ADR-0008). The
 // reward is capped below the cloud cost avoided, so the payout is funded by real
 // savings and never minted from nothing (ADR-0013).
-func (a *API) depinSettle(w http.ResponseWriter, r *http.Request) {
+// settleDepin credits every owned node's pending contribution to its wallet and clears
+// the settled units. Shared by the /v1/depin/settle handler and the auto-settle timer.
+func (a *API) settleDepin(ctx context.Context) (paid, avoided int64, results []map[string]any) {
 	meters := a.ledger.Meter()
-	results := make([]map[string]any, 0, len(meters))
-	var paid, avoided int64
+	results = make([]map[string]any, 0, len(meters))
 
 	for _, m := range meters {
 		units := m.Pending
@@ -547,7 +665,7 @@ func (a *API) depinSettle(w http.ResponseWriter, r *http.Request) {
 			Ref   string `json:"ref"`
 		}{Minor: reward, Ref: ref})
 
-		resp, err := a.wallet.CreditNodeReward(r.Context(), &walletv1.CreditNodeRewardRequest{
+		resp, err := a.wallet.CreditNodeReward(ctx, &walletv1.CreditNodeRewardRequest{
 			UserId:            m.Owner,
 			ContributionProof: proof,
 		})
@@ -576,6 +694,20 @@ func (a *API) depinSettle(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	a.totalRewardedMin += paid
 	a.totalCloudAvoided += avoided
+	a.mu.Unlock()
+	return paid, avoided, results
+}
+
+// AutoSettle runs one settlement pass for the background timer, returning the amounts
+// paid and cloud cost avoided this pass.
+func (a *API) AutoSettle(ctx context.Context) (paid, avoided int64) {
+	paid, avoided, _ = a.settleDepin(ctx)
+	return paid, avoided
+}
+
+func (a *API) depinSettle(w http.ResponseWriter, r *http.Request) {
+	paid, avoided, results := a.settleDepin(r.Context())
+	a.mu.Lock()
 	totalRewarded, totalAvoided := a.totalRewardedMin, a.totalCloudAvoided
 	a.mu.Unlock()
 

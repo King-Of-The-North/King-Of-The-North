@@ -22,7 +22,6 @@ import (
 
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/catalog"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/charges"
-	"github.com/king-of-the-north/king-of-the-north/gateway/internal/devices"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/httpapi"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/ledgerp2p"
 	"github.com/king-of-the-north/king-of-the-north/gateway/internal/walletclient"
@@ -77,11 +76,32 @@ func main() {
 		catalog.Product{MerchantID: "mer_demo", Barcode: "8690000000031", Name: "T-Shirt", PriceMinor: 29900},
 	)
 
-	// Device registry: binds each user to their phones' Ed25519 keys, used to
-	// authenticate the P2P WebSocket handshake (ADR-0006/0010). In-memory for the demo.
-	deviceStore := devices.NewStore()
+	// The device registry now lives in the wallet (Postgres), reached via the wallet
+	// client — so device bindings survive restarts and are authoritative.
+	api := httpapi.New(wallet, ledger, chargeStore, catalogStore, depin)
+	api.Routes(mux)
 
-	httpapi.New(wallet, ledger, chargeStore, catalogStore, deviceStore, depin).Routes(mux)
+	// Auto-settle DePIN rewards on a timer so the demo runs itself (0/empty = off, the
+	// manual POST /v1/depin/settle still works). Stops when rootCtx is cancelled.
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
+	if interval := envDuration("DEPIN_AUTO_SETTLE_INTERVAL", 0); interval > 0 {
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			log.Printf("gateway: DePIN auto-settle every %s", interval)
+			for {
+				select {
+				case <-rootCtx.Done():
+					return
+				case <-ticker.C:
+					if paid, avoided := api.AutoSettle(rootCtx); paid > 0 {
+						log.Printf("gateway: auto-settled %d kuruş (cloud avoided %d)", paid, avoided)
+					}
+				}
+			}
+		}()
+	}
 
 	// CORS so the browser-based merchant/admin web app can call the Gateway (ADR-0014).
 	corsOrigin := env("GATEWAY_CORS_ORIGIN", "*")
@@ -117,6 +137,16 @@ func envInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			return n
+		}
+	}
+	return fallback
+}
+
+// envDuration parses a Go duration (e.g. "30s", "5m"); fallback on empty/invalid.
+func envDuration(key string, fallback time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
 		}
 	}
 	return fallback

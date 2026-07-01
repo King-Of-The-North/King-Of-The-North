@@ -8,6 +8,8 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"log"
 	"net"
@@ -44,9 +46,17 @@ func main() {
 	}
 	log.Println("wallet: ledger ready")
 
-	// gRPC server over the ledger + Moka mock.
+	// Ed25519 key for signing offline vouchers (ADR-0012), ephemeral for the demo — a
+	// production build loads it from a secret so vouchers survive restarts.
+	_, voucherPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		log.Fatalf("wallet: voucher key: %v", err)
+	}
+
+	// gRPC server over the ledger + Moka mock (the internal settlement stub — the app is
+	// self-contained, no external rails).
 	grpcSrv := grpc.NewServer()
-	walletv1.RegisterWalletServiceServer(grpcSrv, service.New(st, moka.Mock{}))
+	walletv1.RegisterWalletServiceServer(grpcSrv, service.New(st, moka.Mock{}, voucherPriv))
 	reflection.Register(grpcSrv) // lets grpcurl introspect without proto files
 
 	lis, err := net.Listen("tcp", grpcAddr)

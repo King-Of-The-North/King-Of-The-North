@@ -263,11 +263,13 @@ func TestListTransactions(t *testing.T) {
 	uid := uuid.NewString()
 	_ = s.Deposit(ctx, newAccount(uid, 100000))
 
-	// A spend and a node reward → two rows, newest first.
-	if _, err := s.Deduct(ctx, uid, 3000, "spend-1"); err != nil {
+	// A spend and a node reward → two rows, newest first. Unique codes so the test is
+	// idempotent against the shared test DB (transactions.other_trx_code is UNIQUE).
+	spendCode, rewardCode := uuid.NewString(), uuid.NewString()
+	if _, err := s.Deduct(ctx, uid, 3000, spendCode); err != nil {
 		t.Fatalf("deduct: %v", err)
 	}
-	if _, err := s.CreditNodeReward(ctx, uid, 250, "reward-1"); err != nil {
+	if _, err := s.CreditNodeReward(ctx, uid, 250, rewardCode); err != nil {
 		t.Fatalf("reward: %v", err)
 	}
 
@@ -279,7 +281,7 @@ func TestListTransactions(t *testing.T) {
 		t.Fatalf("want 2 transactions, got %d", len(txs))
 	}
 	// Newest first: the reward was written after the spend.
-	if txs[0].OtherTrxCode != "reward-1" || txs[1].OtherTrxCode != "spend-1" {
+	if txs[0].OtherTrxCode != rewardCode || txs[1].OtherTrxCode != spendCode {
 		t.Fatalf("wrong order: %s then %s", txs[0].OtherTrxCode, txs[1].OtherTrxCode)
 	}
 	if txs[1].AmountMinor != 3000 {
@@ -310,6 +312,179 @@ func TestGetAccountMalformedID(t *testing.T) {
 	}
 	if _, err := s.TransferCredit(ctx, "not-a-user", uuid.NewString(), 100, uuid.NewString()); err != ErrAccountNotFound {
 		t.Fatalf("TransferCredit: want ErrAccountNotFound for malformed id, got %v", err)
+	}
+}
+
+func TestDeviceEnrollListRevoke(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid := uuid.NewString()
+	k1 := make([]byte, 32)
+	k2 := make([]byte, 32)
+	k1[0], k2[0] = 1, 2
+
+	if err := s.EnrollDevice(ctx, uid, k1); err != nil {
+		t.Fatalf("enroll k1: %v", err)
+	}
+	if err := s.EnrollDevice(ctx, uid, k2); err != nil {
+		t.Fatalf("enroll k2: %v", err)
+	}
+	if err := s.EnrollDevice(ctx, uid, k1); err != nil { // idempotent
+		t.Fatalf("re-enroll k1: %v", err)
+	}
+	ds, _ := s.ListActiveDevices(ctx, uid)
+	if len(ds) != 2 {
+		t.Fatalf("want 2 active devices, got %d", len(ds))
+	}
+
+	if err := s.RevokeDevice(ctx, uid, k1); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	ds, _ = s.ListActiveDevices(ctx, uid)
+	if len(ds) != 1 {
+		t.Fatalf("want 1 active after revoke, got %d", len(ds))
+	}
+
+	// Malformed user id → empty, not an error.
+	if got, err := s.ListActiveDevices(ctx, "not-a-user"); err != nil || len(got) != 0 {
+		t.Fatalf("malformed id: want empty/no-error, got %d/%v", len(got), err)
+	}
+}
+
+func TestRebindDevices(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid := uuid.NewString()
+	old1 := make([]byte, 32)
+	old2 := make([]byte, 32)
+	newK := make([]byte, 32)
+	old1[0], old2[0], newK[0] = 10, 11, 12
+	_ = s.EnrollDevice(ctx, uid, old1)
+	_ = s.EnrollDevice(ctx, uid, old2)
+
+	if err := s.RebindDevices(ctx, uid, newK); err != nil {
+		t.Fatalf("rebind: %v", err)
+	}
+	ds, _ := s.ListActiveDevices(ctx, uid)
+	if len(ds) != 1 {
+		t.Fatalf("want exactly 1 active device after rebind, got %d", len(ds))
+	}
+	if ds[0].PubKey[0] != newK[0] {
+		t.Fatalf("active device is not the new key")
+	}
+}
+
+func issueTestVoucher(t *testing.T, s *Store, uid string, amount int64, ttl time.Duration) string {
+	t.Helper()
+	id := uuid.NewString()
+	nonce := []byte("nonce-0000000000")
+	sig := []byte("sig")
+	if err := s.IssueVoucher(context.Background(), id, uid, amount, nonce, sig, time.Now().Add(ttl)); err != nil {
+		t.Fatalf("issue voucher: %v", err)
+	}
+	return id
+}
+
+func TestVoucherIssueReservesCredit(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid := uuid.NewString()
+	_ = s.Deposit(ctx, newAccount(uid, 10000))
+
+	issueTestVoucher(t, s, uid, 3000, time.Hour)
+	a, _ := s.GetAccount(ctx, uid)
+	if a.AvailableCredit != 7000 {
+		t.Fatalf("issue should reserve 3000, available=%d", a.AvailableCredit)
+	}
+	// Over available → rejected, balance untouched.
+	if err := s.IssueVoucher(ctx, uuid.NewString(), uid, 8000, []byte("n"), []byte("s"), time.Now().Add(time.Hour)); err != ErrInsufficientCredit {
+		t.Fatalf("want ErrInsufficientCredit, got %v", err)
+	}
+	a, _ = s.GetAccount(ctx, uid)
+	if a.AvailableCredit != 7000 {
+		t.Fatalf("rejected issue moved credit: %d", a.AvailableCredit)
+	}
+}
+
+func TestVoucherRedeemOnce(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid := uuid.NewString()
+	_ = s.Deposit(ctx, newAccount(uid, 10000))
+	id := issueTestVoucher(t, s, uid, 2000, time.Hour)
+
+	v, err := s.RedeemVoucher(ctx, id, uuid.NewString())
+	if err != nil {
+		t.Fatalf("redeem: %v", err)
+	}
+	if v.UserID != uid || v.AmountMinor != 2000 {
+		t.Fatalf("bad redeemed voucher: %+v", v)
+	}
+	// Second redeem rejected — bounded double-spend.
+	if _, err := s.RedeemVoucher(ctx, id, uuid.NewString()); err != ErrAlreadyRedeemed {
+		t.Fatalf("want ErrAlreadyRedeemed, got %v", err)
+	}
+	// Redeem does not further deduct (reserved at issue): still 8000.
+	a, _ := s.GetAccount(ctx, uid)
+	if a.AvailableCredit != 8000 {
+		t.Fatalf("redeem changed balance: %d", a.AvailableCredit)
+	}
+}
+
+func TestVoucherExpireRefunds(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid := uuid.NewString()
+	_ = s.Deposit(ctx, newAccount(uid, 10000))
+	issueTestVoucher(t, s, uid, 2500, -time.Second) // already expired
+
+	count, refunded, err := s.ExpireVouchers(ctx)
+	if err != nil {
+		t.Fatalf("expire: %v", err)
+	}
+	if count != 1 || refunded != 2500 {
+		t.Fatalf("want expired 1 / refunded 2500, got %d/%d", count, refunded)
+	}
+	a, _ := s.GetAccount(ctx, uid)
+	if a.AvailableCredit != 10000 {
+		t.Fatalf("expire should refund to 10000, got %d", a.AvailableCredit)
+	}
+	// An expired voucher can't be redeemed.
+	list, _ := s.ListVouchers(ctx, uid)
+	if len(list) != 1 || list[0].Status != "expired" {
+		t.Fatalf("voucher not marked expired: %+v", list)
+	}
+}
+
+// TestConcurrentRedeemOnlyOneWins: many goroutines race to redeem one voucher; exactly
+// one succeeds (the FOR UPDATE lock serializes them).
+func TestConcurrentRedeemOnlyOneWins(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid := uuid.NewString()
+	_ = s.Deposit(ctx, newAccount(uid, 10000))
+	id := issueTestVoucher(t, s, uid, 1000, time.Hour)
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var wins int
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			if _, err := s.RedeemVoucher(ctx, id, uuid.NewString()); err == nil {
+				mu.Lock()
+				wins++
+				mu.Unlock()
+			} else if err != ErrAlreadyRedeemed {
+				t.Errorf("unexpected redeem error: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if wins != 1 {
+		t.Fatalf("want exactly 1 successful redeem, got %d (double-spend!)", wins)
 	}
 }
 

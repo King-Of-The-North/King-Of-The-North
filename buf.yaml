@@ -7,6 +7,7 @@ lint:
   except:
     - PACKAGE_DIRECTORY_MATCH
     - RPC_RESPONSE_STANDARD_NAME # GetAccount returns the domain type Account
+    - RPC_REQUEST_RESPONSE_UNIQUE # DeviceList/Voucher are shared domain responses
 breaking:
   use:
     - FILE

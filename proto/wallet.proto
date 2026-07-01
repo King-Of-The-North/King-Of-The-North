@@ -20,6 +20,21 @@ service WalletService {
   rpc Transfer(TransferRequest) returns (TransferResponse);
   // Gateway -> Wallet: list a user's transactions, newest first (receipts/history).
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+
+  // Device registry (P2P WebSocket + signed-pay auth; ADR-0006/0010).
+  rpc EnrollDevice(EnrollDeviceRequest) returns (DeviceList);
+  rpc ListDevices(ListDevicesRequest) returns (DeviceList);
+  rpc RevokeDevice(RevokeDeviceRequest) returns (DeviceList);
+  // Account recovery / device rebind: revoke all keys, enroll a new one (ADR-0011).
+  rpc RebindDevices(RebindDevicesRequest) returns (DeviceList);
+
+  // Offline spending vouchers (capped, pre-reserved; ADR-0012).
+  rpc IssueVoucher(IssueVoucherRequest) returns (Voucher);
+  rpc RedeemVoucher(RedeemVoucherRequest) returns (Voucher);
+  rpc ExpireVouchers(ExpireVouchersRequest) returns (ExpireVouchersResponse);
+  rpc ListVouchers(ListVouchersRequest) returns (VoucherList);
+  // The wallet's voucher-signing public key, so a voucher can be verified offline.
+  rpc GetVoucherPubKey(GetVoucherPubKeyRequest) returns (GetVoucherPubKeyResponse);
 }
 
 message CalculateLimitRequest {
@@ -114,4 +129,82 @@ message Transaction {
 
 message ListTransactionsResponse {
   repeated Transaction transactions = 1;
+}
+
+// --- Devices (ADR-0006/0010/0011) ---
+
+message Device {
+  bytes device_pubkey = 1; // Ed25519 (32 bytes)
+  bool active = 2;
+  string created_at = 3; // RFC3339
+}
+
+message DeviceList {
+  string user_id = 1;
+  repeated Device devices = 2; // active devices only
+}
+
+message EnrollDeviceRequest {
+  string user_id = 1;
+  bytes device_pubkey = 2;
+}
+
+message ListDevicesRequest {
+  string user_id = 1;
+}
+
+message RevokeDeviceRequest {
+  string user_id = 1;
+  bytes device_pubkey = 2;
+}
+
+message RebindDevicesRequest {
+  string user_id = 1;
+  bytes new_device_pubkey = 2;
+}
+
+// --- Vouchers (ADR-0012) ---
+
+message Voucher {
+  string id = 1;
+  string user_id = 2;
+  int64 amount_minor = 3;
+  string status = 4; // "issued" | "redeemed" | "expired"
+  bytes nonce = 5;
+  bytes sig = 6; // wallet's Ed25519 signature over the voucher payload
+  string expires_at = 7; // RFC3339
+  string issued_at = 8;
+  string redeem_trx_code = 9; // set once redeemed
+}
+
+message IssueVoucherRequest {
+  string user_id = 1;
+  int64 amount_minor = 2;
+  uint32 ttl_seconds = 3; // 0 = server default
+}
+
+message RedeemVoucherRequest {
+  string voucher_id = 1;
+  string other_trx_code = 2;
+}
+
+message ExpireVouchersRequest {}
+
+message ExpireVouchersResponse {
+  int32 expired_count = 1;
+  int64 refunded_minor = 2;
+}
+
+message ListVouchersRequest {
+  string user_id = 1;
+}
+
+message VoucherList {
+  repeated Voucher vouchers = 1;
+}
+
+message GetVoucherPubKeyRequest {}
+
+message GetVoucherPubKeyResponse {
+  bytes voucher_pubkey = 1;
 }

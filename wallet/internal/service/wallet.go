@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"time"
@@ -21,13 +22,21 @@ import (
 // Wallet implements walletv1.WalletServiceServer.
 type Wallet struct {
 	walletv1.UnimplementedWalletServiceServer
-	store *store.Store
-	moka  moka.Client
+	store       *store.Store
+	moka        moka.Client
+	voucherPriv ed25519.PrivateKey // signs offline vouchers (ADR-0012)
+	voucherPub  ed25519.PublicKey
 }
 
-// New builds the service over a ledger store and a Moka client (Mock for the demo).
-func New(s *store.Store, m moka.Client) *Wallet {
-	return &Wallet{store: s, moka: m}
+// New builds the service over a ledger store, a Moka client (Mock for the demo), and an
+// Ed25519 key used to sign offline vouchers so they can be verified off-line.
+func New(s *store.Store, m moka.Client, voucherPriv ed25519.PrivateKey) *Wallet {
+	return &Wallet{
+		store:       s,
+		moka:        m,
+		voucherPriv: voucherPriv,
+		voucherPub:  voucherPriv.Public().(ed25519.PublicKey),
+	}
 }
 
 // compile-time check: Wallet implements the generated server interface.

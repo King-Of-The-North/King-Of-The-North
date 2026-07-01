@@ -7,6 +7,8 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"io/fs"
+	"sort"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,15 +38,22 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 // Close releases the pool.
 func (s *Store) Close() { s.pool.Close() }
 
-// Migrate applies the embedded schema. Migrations are idempotent (IF NOT EXISTS),
-// so this is safe to run on every boot for the demo.
+// Migrate applies every embedded migration in filename order. Migrations are idempotent
+// (IF NOT EXISTS), so this is safe to run on every boot for the demo.
 func (s *Store) Migrate(ctx context.Context) error {
-	sql, err := migrationsFS.ReadFile("migrations/0001_init.sql")
+	files, err := fs.Glob(migrationsFS, "migrations/*.sql")
 	if err != nil {
-		return fmt.Errorf("store: read migration: %w", err)
+		return fmt.Errorf("store: list migrations: %w", err)
 	}
-	if _, err := s.pool.Exec(ctx, string(sql)); err != nil {
-		return fmt.Errorf("store: apply migration: %w", err)
+	sort.Strings(files) // 0001_… before 0002_…
+	for _, f := range files {
+		sql, err := migrationsFS.ReadFile(f)
+		if err != nil {
+			return fmt.Errorf("store: read migration %s: %w", f, err)
+		}
+		if _, err := s.pool.Exec(ctx, string(sql)); err != nil {
+			return fmt.Errorf("store: apply migration %s: %w", f, err)
+		}
 	}
 	return nil
 }

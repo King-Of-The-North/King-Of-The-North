@@ -934,6 +934,794 @@ func (x *ListTransactionsResponse) GetTransactions() []*Transaction {
 	return nil
 }
 
+type Device struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DevicePubkey  []byte                 `protobuf:"bytes,1,opt,name=device_pubkey,json=devicePubkey,proto3" json:"device_pubkey,omitempty"` // Ed25519 (32 bytes)
+	Active        bool                   `protobuf:"varint,2,opt,name=active,proto3" json:"active,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // RFC3339
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Device) Reset() {
+	*x = Device{}
+	mi := &file_wallet_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Device) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Device) ProtoMessage() {}
+
+func (x *Device) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Device.ProtoReflect.Descriptor instead.
+func (*Device) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *Device) GetDevicePubkey() []byte {
+	if x != nil {
+		return x.DevicePubkey
+	}
+	return nil
+}
+
+func (x *Device) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *Device) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type DeviceList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Devices       []*Device              `protobuf:"bytes,2,rep,name=devices,proto3" json:"devices,omitempty"` // active devices only
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeviceList) Reset() {
+	*x = DeviceList{}
+	mi := &file_wallet_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeviceList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeviceList) ProtoMessage() {}
+
+func (x *DeviceList) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeviceList.ProtoReflect.Descriptor instead.
+func (*DeviceList) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *DeviceList) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *DeviceList) GetDevices() []*Device {
+	if x != nil {
+		return x.Devices
+	}
+	return nil
+}
+
+type EnrollDeviceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DevicePubkey  []byte                 `protobuf:"bytes,2,opt,name=device_pubkey,json=devicePubkey,proto3" json:"device_pubkey,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrollDeviceRequest) Reset() {
+	*x = EnrollDeviceRequest{}
+	mi := &file_wallet_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollDeviceRequest) ProtoMessage() {}
+
+func (x *EnrollDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrollDeviceRequest.ProtoReflect.Descriptor instead.
+func (*EnrollDeviceRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *EnrollDeviceRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *EnrollDeviceRequest) GetDevicePubkey() []byte {
+	if x != nil {
+		return x.DevicePubkey
+	}
+	return nil
+}
+
+type ListDevicesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDevicesRequest) Reset() {
+	*x = ListDevicesRequest{}
+	mi := &file_wallet_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDevicesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDevicesRequest) ProtoMessage() {}
+
+func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDevicesRequest.ProtoReflect.Descriptor instead.
+func (*ListDevicesRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ListDevicesRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type RevokeDeviceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DevicePubkey  []byte                 `protobuf:"bytes,2,opt,name=device_pubkey,json=devicePubkey,proto3" json:"device_pubkey,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeDeviceRequest) Reset() {
+	*x = RevokeDeviceRequest{}
+	mi := &file_wallet_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeDeviceRequest) ProtoMessage() {}
+
+func (x *RevokeDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeDeviceRequest.ProtoReflect.Descriptor instead.
+func (*RevokeDeviceRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *RevokeDeviceRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *RevokeDeviceRequest) GetDevicePubkey() []byte {
+	if x != nil {
+		return x.DevicePubkey
+	}
+	return nil
+}
+
+type RebindDevicesRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	NewDevicePubkey []byte                 `protobuf:"bytes,2,opt,name=new_device_pubkey,json=newDevicePubkey,proto3" json:"new_device_pubkey,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RebindDevicesRequest) Reset() {
+	*x = RebindDevicesRequest{}
+	mi := &file_wallet_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RebindDevicesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RebindDevicesRequest) ProtoMessage() {}
+
+func (x *RebindDevicesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RebindDevicesRequest.ProtoReflect.Descriptor instead.
+func (*RebindDevicesRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *RebindDevicesRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *RebindDevicesRequest) GetNewDevicePubkey() []byte {
+	if x != nil {
+		return x.NewDevicePubkey
+	}
+	return nil
+}
+
+type Voucher struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AmountMinor   int64                  `protobuf:"varint,3,opt,name=amount_minor,json=amountMinor,proto3" json:"amount_minor,omitempty"`
+	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"` // "issued" | "redeemed" | "expired"
+	Nonce         []byte                 `protobuf:"bytes,5,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	Sig           []byte                 `protobuf:"bytes,6,opt,name=sig,proto3" json:"sig,omitempty"`                              // wallet's Ed25519 signature over the voucher payload
+	ExpiresAt     string                 `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"` // RFC3339
+	IssuedAt      string                 `protobuf:"bytes,8,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
+	RedeemTrxCode string                 `protobuf:"bytes,9,opt,name=redeem_trx_code,json=redeemTrxCode,proto3" json:"redeem_trx_code,omitempty"` // set once redeemed
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Voucher) Reset() {
+	*x = Voucher{}
+	mi := &file_wallet_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Voucher) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Voucher) ProtoMessage() {}
+
+func (x *Voucher) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Voucher.ProtoReflect.Descriptor instead.
+func (*Voucher) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *Voucher) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Voucher) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *Voucher) GetAmountMinor() int64 {
+	if x != nil {
+		return x.AmountMinor
+	}
+	return 0
+}
+
+func (x *Voucher) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *Voucher) GetNonce() []byte {
+	if x != nil {
+		return x.Nonce
+	}
+	return nil
+}
+
+func (x *Voucher) GetSig() []byte {
+	if x != nil {
+		return x.Sig
+	}
+	return nil
+}
+
+func (x *Voucher) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+func (x *Voucher) GetIssuedAt() string {
+	if x != nil {
+		return x.IssuedAt
+	}
+	return ""
+}
+
+func (x *Voucher) GetRedeemTrxCode() string {
+	if x != nil {
+		return x.RedeemTrxCode
+	}
+	return ""
+}
+
+type IssueVoucherRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AmountMinor   int64                  `protobuf:"varint,2,opt,name=amount_minor,json=amountMinor,proto3" json:"amount_minor,omitempty"`
+	TtlSeconds    uint32                 `protobuf:"varint,3,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"` // 0 = server default
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssueVoucherRequest) Reset() {
+	*x = IssueVoucherRequest{}
+	mi := &file_wallet_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueVoucherRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueVoucherRequest) ProtoMessage() {}
+
+func (x *IssueVoucherRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssueVoucherRequest.ProtoReflect.Descriptor instead.
+func (*IssueVoucherRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *IssueVoucherRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *IssueVoucherRequest) GetAmountMinor() int64 {
+	if x != nil {
+		return x.AmountMinor
+	}
+	return 0
+}
+
+func (x *IssueVoucherRequest) GetTtlSeconds() uint32 {
+	if x != nil {
+		return x.TtlSeconds
+	}
+	return 0
+}
+
+type RedeemVoucherRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	VoucherId     string                 `protobuf:"bytes,1,opt,name=voucher_id,json=voucherId,proto3" json:"voucher_id,omitempty"`
+	OtherTrxCode  string                 `protobuf:"bytes,2,opt,name=other_trx_code,json=otherTrxCode,proto3" json:"other_trx_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RedeemVoucherRequest) Reset() {
+	*x = RedeemVoucherRequest{}
+	mi := &file_wallet_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedeemVoucherRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedeemVoucherRequest) ProtoMessage() {}
+
+func (x *RedeemVoucherRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedeemVoucherRequest.ProtoReflect.Descriptor instead.
+func (*RedeemVoucherRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *RedeemVoucherRequest) GetVoucherId() string {
+	if x != nil {
+		return x.VoucherId
+	}
+	return ""
+}
+
+func (x *RedeemVoucherRequest) GetOtherTrxCode() string {
+	if x != nil {
+		return x.OtherTrxCode
+	}
+	return ""
+}
+
+type ExpireVouchersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExpireVouchersRequest) Reset() {
+	*x = ExpireVouchersRequest{}
+	mi := &file_wallet_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExpireVouchersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExpireVouchersRequest) ProtoMessage() {}
+
+func (x *ExpireVouchersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExpireVouchersRequest.ProtoReflect.Descriptor instead.
+func (*ExpireVouchersRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{23}
+}
+
+type ExpireVouchersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExpiredCount  int32                  `protobuf:"varint,1,opt,name=expired_count,json=expiredCount,proto3" json:"expired_count,omitempty"`
+	RefundedMinor int64                  `protobuf:"varint,2,opt,name=refunded_minor,json=refundedMinor,proto3" json:"refunded_minor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExpireVouchersResponse) Reset() {
+	*x = ExpireVouchersResponse{}
+	mi := &file_wallet_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExpireVouchersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExpireVouchersResponse) ProtoMessage() {}
+
+func (x *ExpireVouchersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExpireVouchersResponse.ProtoReflect.Descriptor instead.
+func (*ExpireVouchersResponse) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ExpireVouchersResponse) GetExpiredCount() int32 {
+	if x != nil {
+		return x.ExpiredCount
+	}
+	return 0
+}
+
+func (x *ExpireVouchersResponse) GetRefundedMinor() int64 {
+	if x != nil {
+		return x.RefundedMinor
+	}
+	return 0
+}
+
+type ListVouchersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListVouchersRequest) Reset() {
+	*x = ListVouchersRequest{}
+	mi := &file_wallet_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListVouchersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListVouchersRequest) ProtoMessage() {}
+
+func (x *ListVouchersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListVouchersRequest.ProtoReflect.Descriptor instead.
+func (*ListVouchersRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ListVouchersRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type VoucherList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vouchers      []*Voucher             `protobuf:"bytes,1,rep,name=vouchers,proto3" json:"vouchers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VoucherList) Reset() {
+	*x = VoucherList{}
+	mi := &file_wallet_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VoucherList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VoucherList) ProtoMessage() {}
+
+func (x *VoucherList) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VoucherList.ProtoReflect.Descriptor instead.
+func (*VoucherList) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *VoucherList) GetVouchers() []*Voucher {
+	if x != nil {
+		return x.Vouchers
+	}
+	return nil
+}
+
+type GetVoucherPubKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVoucherPubKeyRequest) Reset() {
+	*x = GetVoucherPubKeyRequest{}
+	mi := &file_wallet_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVoucherPubKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVoucherPubKeyRequest) ProtoMessage() {}
+
+func (x *GetVoucherPubKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVoucherPubKeyRequest.ProtoReflect.Descriptor instead.
+func (*GetVoucherPubKeyRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{27}
+}
+
+type GetVoucherPubKeyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	VoucherPubkey []byte                 `protobuf:"bytes,1,opt,name=voucher_pubkey,json=voucherPubkey,proto3" json:"voucher_pubkey,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVoucherPubKeyResponse) Reset() {
+	*x = GetVoucherPubKeyResponse{}
+	mi := &file_wallet_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVoucherPubKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVoucherPubKeyResponse) ProtoMessage() {}
+
+func (x *GetVoucherPubKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVoucherPubKeyResponse.ProtoReflect.Descriptor instead.
+func (*GetVoucherPubKeyResponse) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *GetVoucherPubKeyResponse) GetVoucherPubkey() []byte {
+	if x != nil {
+		return x.VoucherPubkey
+	}
+	return nil
+}
+
 var File_wallet_proto protoreflect.FileDescriptor
 
 const file_wallet_proto_rawDesc = "" +
@@ -1009,7 +1797,59 @@ const file_wallet_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\a \x01(\tR\tcreatedAt\"[\n" +
 	"\x18ListTransactionsResponse\x12?\n" +
-	"\ftransactions\x18\x01 \x03(\v2\x1b.kotn.wallet.v1.TransactionR\ftransactions2\xc7\x04\n" +
+	"\ftransactions\x18\x01 \x03(\v2\x1b.kotn.wallet.v1.TransactionR\ftransactions\"d\n" +
+	"\x06Device\x12#\n" +
+	"\rdevice_pubkey\x18\x01 \x01(\fR\fdevicePubkey\x12\x16\n" +
+	"\x06active\x18\x02 \x01(\bR\x06active\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x03 \x01(\tR\tcreatedAt\"W\n" +
+	"\n" +
+	"DeviceList\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x120\n" +
+	"\adevices\x18\x02 \x03(\v2\x16.kotn.wallet.v1.DeviceR\adevices\"S\n" +
+	"\x13EnrollDeviceRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12#\n" +
+	"\rdevice_pubkey\x18\x02 \x01(\fR\fdevicePubkey\"-\n" +
+	"\x12ListDevicesRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"S\n" +
+	"\x13RevokeDeviceRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12#\n" +
+	"\rdevice_pubkey\x18\x02 \x01(\fR\fdevicePubkey\"[\n" +
+	"\x14RebindDevicesRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12*\n" +
+	"\x11new_device_pubkey\x18\x02 \x01(\fR\x0fnewDevicePubkey\"\xf9\x01\n" +
+	"\aVoucher\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12!\n" +
+	"\famount_minor\x18\x03 \x01(\x03R\vamountMinor\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12\x14\n" +
+	"\x05nonce\x18\x05 \x01(\fR\x05nonce\x12\x10\n" +
+	"\x03sig\x18\x06 \x01(\fR\x03sig\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\a \x01(\tR\texpiresAt\x12\x1b\n" +
+	"\tissued_at\x18\b \x01(\tR\bissuedAt\x12&\n" +
+	"\x0fredeem_trx_code\x18\t \x01(\tR\rredeemTrxCode\"r\n" +
+	"\x13IssueVoucherRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
+	"\famount_minor\x18\x02 \x01(\x03R\vamountMinor\x12\x1f\n" +
+	"\vttl_seconds\x18\x03 \x01(\rR\n" +
+	"ttlSeconds\"[\n" +
+	"\x14RedeemVoucherRequest\x12\x1d\n" +
+	"\n" +
+	"voucher_id\x18\x01 \x01(\tR\tvoucherId\x12$\n" +
+	"\x0eother_trx_code\x18\x02 \x01(\tR\fotherTrxCode\"\x17\n" +
+	"\x15ExpireVouchersRequest\"d\n" +
+	"\x16ExpireVouchersResponse\x12#\n" +
+	"\rexpired_count\x18\x01 \x01(\x05R\fexpiredCount\x12%\n" +
+	"\x0erefunded_minor\x18\x02 \x01(\x03R\rrefundedMinor\".\n" +
+	"\x13ListVouchersRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"B\n" +
+	"\vVoucherList\x123\n" +
+	"\bvouchers\x18\x01 \x03(\v2\x17.kotn.wallet.v1.VoucherR\bvouchers\"\x19\n" +
+	"\x17GetVoucherPubKeyRequest\"A\n" +
+	"\x18GetVoucherPubKeyResponse\x12%\n" +
+	"\x0evoucher_pubkey\x18\x01 \x01(\fR\rvoucherPubkey2\xc3\n" +
+	"\n" +
 	"\rWalletService\x12_\n" +
 	"\x0eCalculateLimit\x12%.kotn.wallet.v1.CalculateLimitRequest\x1a&.kotn.wallet.v1.CalculateLimitResponse\x12H\n" +
 	"\n" +
@@ -1017,7 +1857,16 @@ const file_wallet_proto_rawDesc = "" +
 	"\x13ValidateTransaction\x12*.kotn.wallet.v1.ValidateTransactionRequest\x1a+.kotn.wallet.v1.ValidateTransactionResponse\x12e\n" +
 	"\x10CreditNodeReward\x12'.kotn.wallet.v1.CreditNodeRewardRequest\x1a(.kotn.wallet.v1.CreditNodeRewardResponse\x12M\n" +
 	"\bTransfer\x12\x1f.kotn.wallet.v1.TransferRequest\x1a .kotn.wallet.v1.TransferResponse\x12e\n" +
-	"\x10ListTransactions\x12'.kotn.wallet.v1.ListTransactionsRequest\x1a(.kotn.wallet.v1.ListTransactionsResponseB=Z;github.com/king-of-the-north/king-of-the-north/gen;walletv1b\x06proto3"
+	"\x10ListTransactions\x12'.kotn.wallet.v1.ListTransactionsRequest\x1a(.kotn.wallet.v1.ListTransactionsResponse\x12O\n" +
+	"\fEnrollDevice\x12#.kotn.wallet.v1.EnrollDeviceRequest\x1a\x1a.kotn.wallet.v1.DeviceList\x12M\n" +
+	"\vListDevices\x12\".kotn.wallet.v1.ListDevicesRequest\x1a\x1a.kotn.wallet.v1.DeviceList\x12O\n" +
+	"\fRevokeDevice\x12#.kotn.wallet.v1.RevokeDeviceRequest\x1a\x1a.kotn.wallet.v1.DeviceList\x12Q\n" +
+	"\rRebindDevices\x12$.kotn.wallet.v1.RebindDevicesRequest\x1a\x1a.kotn.wallet.v1.DeviceList\x12L\n" +
+	"\fIssueVoucher\x12#.kotn.wallet.v1.IssueVoucherRequest\x1a\x17.kotn.wallet.v1.Voucher\x12N\n" +
+	"\rRedeemVoucher\x12$.kotn.wallet.v1.RedeemVoucherRequest\x1a\x17.kotn.wallet.v1.Voucher\x12_\n" +
+	"\x0eExpireVouchers\x12%.kotn.wallet.v1.ExpireVouchersRequest\x1a&.kotn.wallet.v1.ExpireVouchersResponse\x12P\n" +
+	"\fListVouchers\x12#.kotn.wallet.v1.ListVouchersRequest\x1a\x1b.kotn.wallet.v1.VoucherList\x12e\n" +
+	"\x10GetVoucherPubKey\x12'.kotn.wallet.v1.GetVoucherPubKeyRequest\x1a(.kotn.wallet.v1.GetVoucherPubKeyResponseB=Z;github.com/king-of-the-north/king-of-the-north/gen;walletv1b\x06proto3"
 
 var (
 	file_wallet_proto_rawDescOnce sync.Once
@@ -1031,7 +1880,7 @@ func file_wallet_proto_rawDescGZIP() []byte {
 	return file_wallet_proto_rawDescData
 }
 
-var file_wallet_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_wallet_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_wallet_proto_goTypes = []any{
 	(*CalculateLimitRequest)(nil),       // 0: kotn.wallet.v1.CalculateLimitRequest
 	(*CalculateLimitResponse)(nil),      // 1: kotn.wallet.v1.CalculateLimitResponse
@@ -1047,27 +1896,62 @@ var file_wallet_proto_goTypes = []any{
 	(*ListTransactionsRequest)(nil),     // 11: kotn.wallet.v1.ListTransactionsRequest
 	(*Transaction)(nil),                 // 12: kotn.wallet.v1.Transaction
 	(*ListTransactionsResponse)(nil),    // 13: kotn.wallet.v1.ListTransactionsResponse
+	(*Device)(nil),                      // 14: kotn.wallet.v1.Device
+	(*DeviceList)(nil),                  // 15: kotn.wallet.v1.DeviceList
+	(*EnrollDeviceRequest)(nil),         // 16: kotn.wallet.v1.EnrollDeviceRequest
+	(*ListDevicesRequest)(nil),          // 17: kotn.wallet.v1.ListDevicesRequest
+	(*RevokeDeviceRequest)(nil),         // 18: kotn.wallet.v1.RevokeDeviceRequest
+	(*RebindDevicesRequest)(nil),        // 19: kotn.wallet.v1.RebindDevicesRequest
+	(*Voucher)(nil),                     // 20: kotn.wallet.v1.Voucher
+	(*IssueVoucherRequest)(nil),         // 21: kotn.wallet.v1.IssueVoucherRequest
+	(*RedeemVoucherRequest)(nil),        // 22: kotn.wallet.v1.RedeemVoucherRequest
+	(*ExpireVouchersRequest)(nil),       // 23: kotn.wallet.v1.ExpireVouchersRequest
+	(*ExpireVouchersResponse)(nil),      // 24: kotn.wallet.v1.ExpireVouchersResponse
+	(*ListVouchersRequest)(nil),         // 25: kotn.wallet.v1.ListVouchersRequest
+	(*VoucherList)(nil),                 // 26: kotn.wallet.v1.VoucherList
+	(*GetVoucherPubKeyRequest)(nil),     // 27: kotn.wallet.v1.GetVoucherPubKeyRequest
+	(*GetVoucherPubKeyResponse)(nil),    // 28: kotn.wallet.v1.GetVoucherPubKeyResponse
 }
 var file_wallet_proto_depIdxs = []int32{
 	4,  // 0: kotn.wallet.v1.ValidateTransactionRequest.items:type_name -> kotn.wallet.v1.CartItem
 	12, // 1: kotn.wallet.v1.ListTransactionsResponse.transactions:type_name -> kotn.wallet.v1.Transaction
-	0,  // 2: kotn.wallet.v1.WalletService.CalculateLimit:input_type -> kotn.wallet.v1.CalculateLimitRequest
-	2,  // 3: kotn.wallet.v1.WalletService.GetAccount:input_type -> kotn.wallet.v1.GetAccountRequest
-	5,  // 4: kotn.wallet.v1.WalletService.ValidateTransaction:input_type -> kotn.wallet.v1.ValidateTransactionRequest
-	7,  // 5: kotn.wallet.v1.WalletService.CreditNodeReward:input_type -> kotn.wallet.v1.CreditNodeRewardRequest
-	9,  // 6: kotn.wallet.v1.WalletService.Transfer:input_type -> kotn.wallet.v1.TransferRequest
-	11, // 7: kotn.wallet.v1.WalletService.ListTransactions:input_type -> kotn.wallet.v1.ListTransactionsRequest
-	1,  // 8: kotn.wallet.v1.WalletService.CalculateLimit:output_type -> kotn.wallet.v1.CalculateLimitResponse
-	3,  // 9: kotn.wallet.v1.WalletService.GetAccount:output_type -> kotn.wallet.v1.Account
-	6,  // 10: kotn.wallet.v1.WalletService.ValidateTransaction:output_type -> kotn.wallet.v1.ValidateTransactionResponse
-	8,  // 11: kotn.wallet.v1.WalletService.CreditNodeReward:output_type -> kotn.wallet.v1.CreditNodeRewardResponse
-	10, // 12: kotn.wallet.v1.WalletService.Transfer:output_type -> kotn.wallet.v1.TransferResponse
-	13, // 13: kotn.wallet.v1.WalletService.ListTransactions:output_type -> kotn.wallet.v1.ListTransactionsResponse
-	8,  // [8:14] is the sub-list for method output_type
-	2,  // [2:8] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	14, // 2: kotn.wallet.v1.DeviceList.devices:type_name -> kotn.wallet.v1.Device
+	20, // 3: kotn.wallet.v1.VoucherList.vouchers:type_name -> kotn.wallet.v1.Voucher
+	0,  // 4: kotn.wallet.v1.WalletService.CalculateLimit:input_type -> kotn.wallet.v1.CalculateLimitRequest
+	2,  // 5: kotn.wallet.v1.WalletService.GetAccount:input_type -> kotn.wallet.v1.GetAccountRequest
+	5,  // 6: kotn.wallet.v1.WalletService.ValidateTransaction:input_type -> kotn.wallet.v1.ValidateTransactionRequest
+	7,  // 7: kotn.wallet.v1.WalletService.CreditNodeReward:input_type -> kotn.wallet.v1.CreditNodeRewardRequest
+	9,  // 8: kotn.wallet.v1.WalletService.Transfer:input_type -> kotn.wallet.v1.TransferRequest
+	11, // 9: kotn.wallet.v1.WalletService.ListTransactions:input_type -> kotn.wallet.v1.ListTransactionsRequest
+	16, // 10: kotn.wallet.v1.WalletService.EnrollDevice:input_type -> kotn.wallet.v1.EnrollDeviceRequest
+	17, // 11: kotn.wallet.v1.WalletService.ListDevices:input_type -> kotn.wallet.v1.ListDevicesRequest
+	18, // 12: kotn.wallet.v1.WalletService.RevokeDevice:input_type -> kotn.wallet.v1.RevokeDeviceRequest
+	19, // 13: kotn.wallet.v1.WalletService.RebindDevices:input_type -> kotn.wallet.v1.RebindDevicesRequest
+	21, // 14: kotn.wallet.v1.WalletService.IssueVoucher:input_type -> kotn.wallet.v1.IssueVoucherRequest
+	22, // 15: kotn.wallet.v1.WalletService.RedeemVoucher:input_type -> kotn.wallet.v1.RedeemVoucherRequest
+	23, // 16: kotn.wallet.v1.WalletService.ExpireVouchers:input_type -> kotn.wallet.v1.ExpireVouchersRequest
+	25, // 17: kotn.wallet.v1.WalletService.ListVouchers:input_type -> kotn.wallet.v1.ListVouchersRequest
+	27, // 18: kotn.wallet.v1.WalletService.GetVoucherPubKey:input_type -> kotn.wallet.v1.GetVoucherPubKeyRequest
+	1,  // 19: kotn.wallet.v1.WalletService.CalculateLimit:output_type -> kotn.wallet.v1.CalculateLimitResponse
+	3,  // 20: kotn.wallet.v1.WalletService.GetAccount:output_type -> kotn.wallet.v1.Account
+	6,  // 21: kotn.wallet.v1.WalletService.ValidateTransaction:output_type -> kotn.wallet.v1.ValidateTransactionResponse
+	8,  // 22: kotn.wallet.v1.WalletService.CreditNodeReward:output_type -> kotn.wallet.v1.CreditNodeRewardResponse
+	10, // 23: kotn.wallet.v1.WalletService.Transfer:output_type -> kotn.wallet.v1.TransferResponse
+	13, // 24: kotn.wallet.v1.WalletService.ListTransactions:output_type -> kotn.wallet.v1.ListTransactionsResponse
+	15, // 25: kotn.wallet.v1.WalletService.EnrollDevice:output_type -> kotn.wallet.v1.DeviceList
+	15, // 26: kotn.wallet.v1.WalletService.ListDevices:output_type -> kotn.wallet.v1.DeviceList
+	15, // 27: kotn.wallet.v1.WalletService.RevokeDevice:output_type -> kotn.wallet.v1.DeviceList
+	15, // 28: kotn.wallet.v1.WalletService.RebindDevices:output_type -> kotn.wallet.v1.DeviceList
+	20, // 29: kotn.wallet.v1.WalletService.IssueVoucher:output_type -> kotn.wallet.v1.Voucher
+	20, // 30: kotn.wallet.v1.WalletService.RedeemVoucher:output_type -> kotn.wallet.v1.Voucher
+	24, // 31: kotn.wallet.v1.WalletService.ExpireVouchers:output_type -> kotn.wallet.v1.ExpireVouchersResponse
+	26, // 32: kotn.wallet.v1.WalletService.ListVouchers:output_type -> kotn.wallet.v1.VoucherList
+	28, // 33: kotn.wallet.v1.WalletService.GetVoucherPubKey:output_type -> kotn.wallet.v1.GetVoucherPubKeyResponse
+	19, // [19:34] is the sub-list for method output_type
+	4,  // [4:19] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_wallet_proto_init() }
@@ -1081,7 +1965,7 @@ func file_wallet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wallet_proto_rawDesc), len(file_wallet_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

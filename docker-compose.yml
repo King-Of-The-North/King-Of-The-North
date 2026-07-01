@@ -47,6 +47,8 @@ services:
     environment:
       GATEWAY_HTTP_PORT: "8080"
       WALLET_GRPC_ADDR: wallet:9091
+      # Auto-settle DePIN rewards on this interval (empty = off, manual settle still works).
+      DEPIN_AUTO_SETTLE_INTERVAL: ${DEPIN_AUTO_SETTLE_INTERVAL:-}
     ports:
       - "8080:8080" # REST ingress (the apps call this)
     depends_on:
