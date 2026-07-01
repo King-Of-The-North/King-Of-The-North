@@ -16,6 +16,8 @@ service WalletService {
   rpc ValidateTransaction(ValidateTransactionRequest) returns (ValidateTransactionResponse);
   // Gateway -> Wallet: credit a user for running a P2P node (DePIN, ADR-0008).
   rpc CreditNodeReward(CreditNodeRewardRequest) returns (CreditNodeRewardResponse);
+  // Gateway -> Wallet: move spendable credit from one user to another (atomic).
+  rpc Transfer(TransferRequest) returns (TransferResponse);
 }
 
 message CalculateLimitRequest {
@@ -77,4 +79,18 @@ message CreditNodeRewardRequest {
 message CreditNodeRewardResponse {
   int64 credited_minor = 1;
   int64 available_credit_minor = 2;
+}
+
+message TransferRequest {
+  string from_user_id = 1;
+  string to_user_id = 2;
+  int64 amount_minor = 3; // kuruş
+  string ref = 4; // caller-unique idempotency/audit key
+}
+
+message TransferResponse {
+  int64 from_remaining_minor = 1; // sender available_credit after
+  int64 to_available_minor = 2; // receiver available_credit after
+  string from_trx_code = 3; // audit code, "<ref>:out"
+  string to_trx_code = 4; // audit code, "<ref>:in"
 }

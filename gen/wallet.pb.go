@@ -610,6 +610,142 @@ func (x *CreditNodeRewardResponse) GetAvailableCreditMinor() int64 {
 	return 0
 }
 
+type TransferRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FromUserId    string                 `protobuf:"bytes,1,opt,name=from_user_id,json=fromUserId,proto3" json:"from_user_id,omitempty"`
+	ToUserId      string                 `protobuf:"bytes,2,opt,name=to_user_id,json=toUserId,proto3" json:"to_user_id,omitempty"`
+	AmountMinor   int64                  `protobuf:"varint,3,opt,name=amount_minor,json=amountMinor,proto3" json:"amount_minor,omitempty"` // kuruş
+	Ref           string                 `protobuf:"bytes,4,opt,name=ref,proto3" json:"ref,omitempty"`                                     // caller-unique idempotency/audit key
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferRequest) Reset() {
+	*x = TransferRequest{}
+	mi := &file_wallet_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferRequest) ProtoMessage() {}
+
+func (x *TransferRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferRequest.ProtoReflect.Descriptor instead.
+func (*TransferRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *TransferRequest) GetFromUserId() string {
+	if x != nil {
+		return x.FromUserId
+	}
+	return ""
+}
+
+func (x *TransferRequest) GetToUserId() string {
+	if x != nil {
+		return x.ToUserId
+	}
+	return ""
+}
+
+func (x *TransferRequest) GetAmountMinor() int64 {
+	if x != nil {
+		return x.AmountMinor
+	}
+	return 0
+}
+
+func (x *TransferRequest) GetRef() string {
+	if x != nil {
+		return x.Ref
+	}
+	return ""
+}
+
+type TransferResponse struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	FromRemainingMinor int64                  `protobuf:"varint,1,opt,name=from_remaining_minor,json=fromRemainingMinor,proto3" json:"from_remaining_minor,omitempty"` // sender available_credit after
+	ToAvailableMinor   int64                  `protobuf:"varint,2,opt,name=to_available_minor,json=toAvailableMinor,proto3" json:"to_available_minor,omitempty"`       // receiver available_credit after
+	FromTrxCode        string                 `protobuf:"bytes,3,opt,name=from_trx_code,json=fromTrxCode,proto3" json:"from_trx_code,omitempty"`                       // audit code, "<ref>:out"
+	ToTrxCode          string                 `protobuf:"bytes,4,opt,name=to_trx_code,json=toTrxCode,proto3" json:"to_trx_code,omitempty"`                             // audit code, "<ref>:in"
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *TransferResponse) Reset() {
+	*x = TransferResponse{}
+	mi := &file_wallet_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferResponse) ProtoMessage() {}
+
+func (x *TransferResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferResponse.ProtoReflect.Descriptor instead.
+func (*TransferResponse) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *TransferResponse) GetFromRemainingMinor() int64 {
+	if x != nil {
+		return x.FromRemainingMinor
+	}
+	return 0
+}
+
+func (x *TransferResponse) GetToAvailableMinor() int64 {
+	if x != nil {
+		return x.ToAvailableMinor
+	}
+	return 0
+}
+
+func (x *TransferResponse) GetFromTrxCode() string {
+	if x != nil {
+		return x.FromTrxCode
+	}
+	return ""
+}
+
+func (x *TransferResponse) GetToTrxCode() string {
+	if x != nil {
+		return x.ToTrxCode
+	}
+	return ""
+}
+
 var File_wallet_proto protoreflect.FileDescriptor
 
 const file_wallet_proto_rawDesc = "" +
@@ -658,13 +794,26 @@ const file_wallet_proto_rawDesc = "" +
 	"\x12contribution_proof\x18\x02 \x01(\fR\x11contributionProof\"w\n" +
 	"\x18CreditNodeRewardResponse\x12%\n" +
 	"\x0ecredited_minor\x18\x01 \x01(\x03R\rcreditedMinor\x124\n" +
-	"\x16available_credit_minor\x18\x02 \x01(\x03R\x14availableCreditMinor2\x91\x03\n" +
+	"\x16available_credit_minor\x18\x02 \x01(\x03R\x14availableCreditMinor\"\x86\x01\n" +
+	"\x0fTransferRequest\x12 \n" +
+	"\ffrom_user_id\x18\x01 \x01(\tR\n" +
+	"fromUserId\x12\x1c\n" +
+	"\n" +
+	"to_user_id\x18\x02 \x01(\tR\btoUserId\x12!\n" +
+	"\famount_minor\x18\x03 \x01(\x03R\vamountMinor\x12\x10\n" +
+	"\x03ref\x18\x04 \x01(\tR\x03ref\"\xb6\x01\n" +
+	"\x10TransferResponse\x120\n" +
+	"\x14from_remaining_minor\x18\x01 \x01(\x03R\x12fromRemainingMinor\x12,\n" +
+	"\x12to_available_minor\x18\x02 \x01(\x03R\x10toAvailableMinor\x12\"\n" +
+	"\rfrom_trx_code\x18\x03 \x01(\tR\vfromTrxCode\x12\x1e\n" +
+	"\vto_trx_code\x18\x04 \x01(\tR\ttoTrxCode2\xe0\x03\n" +
 	"\rWalletService\x12_\n" +
 	"\x0eCalculateLimit\x12%.kotn.wallet.v1.CalculateLimitRequest\x1a&.kotn.wallet.v1.CalculateLimitResponse\x12H\n" +
 	"\n" +
 	"GetAccount\x12!.kotn.wallet.v1.GetAccountRequest\x1a\x17.kotn.wallet.v1.Account\x12n\n" +
 	"\x13ValidateTransaction\x12*.kotn.wallet.v1.ValidateTransactionRequest\x1a+.kotn.wallet.v1.ValidateTransactionResponse\x12e\n" +
-	"\x10CreditNodeReward\x12'.kotn.wallet.v1.CreditNodeRewardRequest\x1a(.kotn.wallet.v1.CreditNodeRewardResponseB=Z;github.com/king-of-the-north/king-of-the-north/gen;walletv1b\x06proto3"
+	"\x10CreditNodeReward\x12'.kotn.wallet.v1.CreditNodeRewardRequest\x1a(.kotn.wallet.v1.CreditNodeRewardResponse\x12M\n" +
+	"\bTransfer\x12\x1f.kotn.wallet.v1.TransferRequest\x1a .kotn.wallet.v1.TransferResponseB=Z;github.com/king-of-the-north/king-of-the-north/gen;walletv1b\x06proto3"
 
 var (
 	file_wallet_proto_rawDescOnce sync.Once
@@ -678,7 +827,7 @@ func file_wallet_proto_rawDescGZIP() []byte {
 	return file_wallet_proto_rawDescData
 }
 
-var file_wallet_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_wallet_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_wallet_proto_goTypes = []any{
 	(*CalculateLimitRequest)(nil),       // 0: kotn.wallet.v1.CalculateLimitRequest
 	(*CalculateLimitResponse)(nil),      // 1: kotn.wallet.v1.CalculateLimitResponse
@@ -689,22 +838,26 @@ var file_wallet_proto_goTypes = []any{
 	(*ValidateTransactionResponse)(nil), // 6: kotn.wallet.v1.ValidateTransactionResponse
 	(*CreditNodeRewardRequest)(nil),     // 7: kotn.wallet.v1.CreditNodeRewardRequest
 	(*CreditNodeRewardResponse)(nil),    // 8: kotn.wallet.v1.CreditNodeRewardResponse
+	(*TransferRequest)(nil),             // 9: kotn.wallet.v1.TransferRequest
+	(*TransferResponse)(nil),            // 10: kotn.wallet.v1.TransferResponse
 }
 var file_wallet_proto_depIdxs = []int32{
-	4, // 0: kotn.wallet.v1.ValidateTransactionRequest.items:type_name -> kotn.wallet.v1.CartItem
-	0, // 1: kotn.wallet.v1.WalletService.CalculateLimit:input_type -> kotn.wallet.v1.CalculateLimitRequest
-	2, // 2: kotn.wallet.v1.WalletService.GetAccount:input_type -> kotn.wallet.v1.GetAccountRequest
-	5, // 3: kotn.wallet.v1.WalletService.ValidateTransaction:input_type -> kotn.wallet.v1.ValidateTransactionRequest
-	7, // 4: kotn.wallet.v1.WalletService.CreditNodeReward:input_type -> kotn.wallet.v1.CreditNodeRewardRequest
-	1, // 5: kotn.wallet.v1.WalletService.CalculateLimit:output_type -> kotn.wallet.v1.CalculateLimitResponse
-	3, // 6: kotn.wallet.v1.WalletService.GetAccount:output_type -> kotn.wallet.v1.Account
-	6, // 7: kotn.wallet.v1.WalletService.ValidateTransaction:output_type -> kotn.wallet.v1.ValidateTransactionResponse
-	8, // 8: kotn.wallet.v1.WalletService.CreditNodeReward:output_type -> kotn.wallet.v1.CreditNodeRewardResponse
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4,  // 0: kotn.wallet.v1.ValidateTransactionRequest.items:type_name -> kotn.wallet.v1.CartItem
+	0,  // 1: kotn.wallet.v1.WalletService.CalculateLimit:input_type -> kotn.wallet.v1.CalculateLimitRequest
+	2,  // 2: kotn.wallet.v1.WalletService.GetAccount:input_type -> kotn.wallet.v1.GetAccountRequest
+	5,  // 3: kotn.wallet.v1.WalletService.ValidateTransaction:input_type -> kotn.wallet.v1.ValidateTransactionRequest
+	7,  // 4: kotn.wallet.v1.WalletService.CreditNodeReward:input_type -> kotn.wallet.v1.CreditNodeRewardRequest
+	9,  // 5: kotn.wallet.v1.WalletService.Transfer:input_type -> kotn.wallet.v1.TransferRequest
+	1,  // 6: kotn.wallet.v1.WalletService.CalculateLimit:output_type -> kotn.wallet.v1.CalculateLimitResponse
+	3,  // 7: kotn.wallet.v1.WalletService.GetAccount:output_type -> kotn.wallet.v1.Account
+	6,  // 8: kotn.wallet.v1.WalletService.ValidateTransaction:output_type -> kotn.wallet.v1.ValidateTransactionResponse
+	8,  // 9: kotn.wallet.v1.WalletService.CreditNodeReward:output_type -> kotn.wallet.v1.CreditNodeRewardResponse
+	10, // 10: kotn.wallet.v1.WalletService.Transfer:output_type -> kotn.wallet.v1.TransferResponse
+	6,  // [6:11] is the sub-list for method output_type
+	1,  // [1:6] is the sub-list for method input_type
+	1,  // [1:1] is the sub-list for extension type_name
+	1,  // [1:1] is the sub-list for extension extendee
+	0,  // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_wallet_proto_init() }
@@ -718,7 +871,7 @@ func file_wallet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wallet_proto_rawDesc), len(file_wallet_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

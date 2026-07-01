@@ -175,6 +175,49 @@ func (w *Wallet) CreditNodeReward(ctx context.Context, req *walletv1.CreditNodeR
 	}, nil
 }
 
+// Transfer atomically moves spendable credit from one user to another. Only
+// available_credit moves (the locked principal stays put); the store enforces the
+// no-negative-balance and no-deadlock invariants. This is an internal ledger move —
+// no Moka settle (nothing leaves the custody rails).
+func (w *Wallet) Transfer(ctx context.Context, req *walletv1.TransferRequest) (*walletv1.TransferResponse, error) {
+	if req.GetFromUserId() == "" || req.GetToUserId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "from_user_id and to_user_id required")
+	}
+	if req.GetFromUserId() == req.GetToUserId() {
+		return nil, status.Error(codes.InvalidArgument, "cannot transfer to self")
+	}
+	if req.GetAmountMinor() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "amount_minor must be positive")
+	}
+	if req.GetRef() == "" {
+		return nil, status.Error(codes.InvalidArgument, "ref required")
+	}
+
+	res, err := w.store.TransferCredit(ctx, req.GetFromUserId(), req.GetToUserId(), req.GetAmountMinor(), req.GetRef())
+	if errors.Is(err, store.ErrSelfTransfer) {
+		return nil, status.Error(codes.InvalidArgument, "cannot transfer to self")
+	}
+	if errors.Is(err, store.ErrAccountNotFound) {
+		return nil, status.Error(codes.NotFound, "account not found")
+	}
+	if errors.Is(err, store.ErrInsufficientCredit) {
+		return nil, status.Error(codes.FailedPrecondition, "insufficient credit")
+	}
+	if errors.Is(err, store.ErrDuplicateRef) {
+		return nil, status.Error(codes.AlreadyExists, "transfer ref already used")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "transfer: %v", err)
+	}
+
+	return &walletv1.TransferResponse{
+		FromRemainingMinor: res.FromRemainingMinor,
+		ToAvailableMinor:   res.ToAvailableMinor,
+		FromTrxCode:        res.FromTrxCode,
+		ToTrxCode:          res.ToTrxCode,
+	}, nil
+}
+
 // cartTotal sums line items in minor units, guarding against empty carts and overflow.
 func cartTotal(items []*walletv1.CartItem) (int64, error) {
 	if len(items) == 0 {

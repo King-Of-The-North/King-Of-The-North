@@ -133,6 +133,146 @@ func TestConcurrentDeductNoDoubleSpend(t *testing.T) {
 	}
 }
 
+func TestTransferHappy(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	from, to := uuid.NewString(), uuid.NewString()
+	if err := s.Deposit(ctx, newAccount(from, 10000)); err != nil {
+		t.Fatalf("deposit from: %v", err)
+	}
+	if err := s.Deposit(ctx, newAccount(to, 5000)); err != nil {
+		t.Fatalf("deposit to: %v", err)
+	}
+
+	res, err := s.TransferCredit(ctx, from, to, 3000, uuid.NewString())
+	if err != nil {
+		t.Fatalf("transfer: %v", err)
+	}
+	if res.FromRemainingMinor != 7000 || res.ToAvailableMinor != 8000 {
+		t.Fatalf("want from=7000 to=8000, got from=%d to=%d", res.FromRemainingMinor, res.ToAvailableMinor)
+	}
+	fa, _ := s.GetAccount(ctx, from)
+	ta, _ := s.GetAccount(ctx, to)
+	if fa.AvailableCredit != 7000 || ta.AvailableCredit != 8000 {
+		t.Fatalf("persisted balances wrong: from=%d to=%d", fa.AvailableCredit, ta.AvailableCredit)
+	}
+	// credit_limit and principal must be untouched — only available_credit moves.
+	if fa.CreditLimit != 10000 || ta.CreditLimit != 5000 {
+		t.Fatalf("transfer changed credit_limit: from=%d to=%d", fa.CreditLimit, ta.CreditLimit)
+	}
+}
+
+func TestTransferInsufficient(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	from, to := uuid.NewString(), uuid.NewString()
+	_ = s.Deposit(ctx, newAccount(from, 2000))
+	_ = s.Deposit(ctx, newAccount(to, 0))
+
+	if _, err := s.TransferCredit(ctx, from, to, 5000, uuid.NewString()); err != ErrInsufficientCredit {
+		t.Fatalf("want ErrInsufficientCredit, got %v", err)
+	}
+	fa, _ := s.GetAccount(ctx, from)
+	ta, _ := s.GetAccount(ctx, to)
+	if fa.AvailableCredit != 2000 || ta.AvailableCredit != 0 {
+		t.Fatalf("declined transfer moved money: from=%d to=%d", fa.AvailableCredit, ta.AvailableCredit)
+	}
+}
+
+func TestTransferSelfAndMissing(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid := uuid.NewString()
+	_ = s.Deposit(ctx, newAccount(uid, 1000))
+
+	if _, err := s.TransferCredit(ctx, uid, uid, 100, uuid.NewString()); err != ErrSelfTransfer {
+		t.Fatalf("want ErrSelfTransfer, got %v", err)
+	}
+	// Receiver has no account.
+	if _, err := s.TransferCredit(ctx, uid, uuid.NewString(), 100, uuid.NewString()); err != ErrAccountNotFound {
+		t.Fatalf("want ErrAccountNotFound, got %v", err)
+	}
+}
+
+func TestTransferDuplicateRef(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	from, to := uuid.NewString(), uuid.NewString()
+	_ = s.Deposit(ctx, newAccount(from, 10000))
+	_ = s.Deposit(ctx, newAccount(to, 0))
+
+	ref := uuid.NewString()
+	if _, err := s.TransferCredit(ctx, from, to, 1000, ref); err != nil {
+		t.Fatalf("first transfer: %v", err)
+	}
+	// Replaying the same ref must be rejected (idempotency), not double-applied.
+	if _, err := s.TransferCredit(ctx, from, to, 1000, ref); err != ErrDuplicateRef {
+		t.Fatalf("want ErrDuplicateRef, got %v", err)
+	}
+	fa, _ := s.GetAccount(ctx, from)
+	if fa.AvailableCredit != 9000 {
+		t.Fatalf("duplicate ref double-applied: from=%d", fa.AvailableCredit)
+	}
+}
+
+// TestConcurrentTransferNoOverdraw races many transfers out of one sender whose credit
+// only covers some of them; total moved must never exceed the starting balance. The
+// dual FOR UPDATE serializes the check-and-decrement (same invariant as Deduct).
+func TestConcurrentTransferNoOverdraw(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	from, to := uuid.NewString(), uuid.NewString()
+	const limit = 10000
+	const amount = 1000 // exactly 10 should succeed
+	_ = s.Deposit(ctx, newAccount(from, limit))
+	_ = s.Deposit(ctx, newAccount(to, 0))
+
+	const goroutines = 30
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var approved int
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := s.TransferCredit(ctx, from, to, amount, uuid.NewString())
+			if err == nil {
+				mu.Lock()
+				approved++
+				mu.Unlock()
+			} else if err != ErrInsufficientCredit {
+				t.Errorf("unexpected transfer error: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if approved != limit/amount {
+		t.Fatalf("want exactly %d approvals, got %d (overdraw!)", limit/amount, approved)
+	}
+	fa, _ := s.GetAccount(ctx, from)
+	ta, _ := s.GetAccount(ctx, to)
+	if fa.AvailableCredit != 0 || ta.AvailableCredit != limit {
+		t.Fatalf("conservation broken: from=%d to=%d", fa.AvailableCredit, ta.AvailableCredit)
+	}
+}
+
+// TestGetAccountMalformedID: a user_id that isn't a valid UUID must read as
+// "not found", not surface a raw driver error (which would 500 + leak SQLSTATE).
+func TestGetAccountMalformedID(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if _, err := s.GetAccount(ctx, "not-a-user"); err != ErrAccountNotFound {
+		t.Fatalf("want ErrAccountNotFound for malformed id, got %v", err)
+	}
+	if _, err := s.Deduct(ctx, "not-a-user", 100, uuid.NewString()); err != ErrAccountNotFound {
+		t.Fatalf("Deduct: want ErrAccountNotFound for malformed id, got %v", err)
+	}
+	if _, err := s.TransferCredit(ctx, "not-a-user", uuid.NewString(), 100, uuid.NewString()); err != ErrAccountNotFound {
+		t.Fatalf("TransferCredit: want ErrAccountNotFound for malformed id, got %v", err)
+	}
+}
+
 func TestCreditNodeReward(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()

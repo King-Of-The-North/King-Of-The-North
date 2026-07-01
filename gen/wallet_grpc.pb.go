@@ -23,6 +23,7 @@ const (
 	WalletService_GetAccount_FullMethodName          = "/kotn.wallet.v1.WalletService/GetAccount"
 	WalletService_ValidateTransaction_FullMethodName = "/kotn.wallet.v1.WalletService/ValidateTransaction"
 	WalletService_CreditNodeReward_FullMethodName    = "/kotn.wallet.v1.WalletService/CreditNodeReward"
+	WalletService_Transfer_FullMethodName            = "/kotn.wallet.v1.WalletService/Transfer"
 )
 
 // WalletServiceClient is the client API for WalletService service.
@@ -41,6 +42,8 @@ type WalletServiceClient interface {
 	ValidateTransaction(ctx context.Context, in *ValidateTransactionRequest, opts ...grpc.CallOption) (*ValidateTransactionResponse, error)
 	// Gateway -> Wallet: credit a user for running a P2P node (DePIN, ADR-0008).
 	CreditNodeReward(ctx context.Context, in *CreditNodeRewardRequest, opts ...grpc.CallOption) (*CreditNodeRewardResponse, error)
+	// Gateway -> Wallet: move spendable credit from one user to another (atomic).
+	Transfer(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error)
 }
 
 type walletServiceClient struct {
@@ -91,6 +94,16 @@ func (c *walletServiceClient) CreditNodeReward(ctx context.Context, in *CreditNo
 	return out, nil
 }
 
+func (c *walletServiceClient) Transfer(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransferResponse)
+	err := c.cc.Invoke(ctx, WalletService_Transfer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WalletServiceServer is the server API for WalletService service.
 // All implementations should embed UnimplementedWalletServiceServer
 // for forward compatibility.
@@ -107,6 +120,8 @@ type WalletServiceServer interface {
 	ValidateTransaction(context.Context, *ValidateTransactionRequest) (*ValidateTransactionResponse, error)
 	// Gateway -> Wallet: credit a user for running a P2P node (DePIN, ADR-0008).
 	CreditNodeReward(context.Context, *CreditNodeRewardRequest) (*CreditNodeRewardResponse, error)
+	// Gateway -> Wallet: move spendable credit from one user to another (atomic).
+	Transfer(context.Context, *TransferRequest) (*TransferResponse, error)
 }
 
 // UnimplementedWalletServiceServer should be embedded to have
@@ -127,6 +142,9 @@ func (UnimplementedWalletServiceServer) ValidateTransaction(context.Context, *Va
 }
 func (UnimplementedWalletServiceServer) CreditNodeReward(context.Context, *CreditNodeRewardRequest) (*CreditNodeRewardResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreditNodeReward not implemented")
+}
+func (UnimplementedWalletServiceServer) Transfer(context.Context, *TransferRequest) (*TransferResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Transfer not implemented")
 }
 func (UnimplementedWalletServiceServer) testEmbeddedByValue() {}
 
@@ -220,6 +238,24 @@ func _WalletService_CreditNodeReward_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WalletService_Transfer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TransferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).Transfer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_Transfer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).Transfer(ctx, req.(*TransferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WalletService_ServiceDesc is the grpc.ServiceDesc for WalletService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -242,6 +278,10 @@ var WalletService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreditNodeReward",
 			Handler:    _WalletService_CreditNodeReward_Handler,
+		},
+		{
+			MethodName: "Transfer",
+			Handler:    _WalletService_Transfer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

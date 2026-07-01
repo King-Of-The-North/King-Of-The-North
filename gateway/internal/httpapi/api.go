@@ -76,6 +76,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/deposit", a.deposit)
 	mux.HandleFunc("GET /v1/accounts/{id}", a.account)
 	mux.HandleFunc("POST /v1/pay", a.pay)
+	mux.HandleFunc("POST /v1/transfer", a.transfer)
 	mux.HandleFunc("POST /v1/node-reward", a.nodeReward)
 	mux.HandleFunc("GET /v1/ledger", a.ledgerList)
 	mux.HandleFunc("GET /v1/ledger/verify", a.ledgerVerify)
@@ -200,6 +201,54 @@ func (a *API) pay(w http.ResponseWriter, r *http.Request) {
 		"moka_payment_id":        res.mokaID,
 		"decline_reason":         res.declineReason,
 		"ledger_hash":            res.ledgerHash,
+	})
+}
+
+// --- transfer -> Transfer ---
+
+type transferRequest struct {
+	FromUserID  string `json:"from_user_id"`
+	ToUserID    string `json:"to_user_id"`
+	AmountMinor int64  `json:"amount_minor"`
+	Ref         string `json:"ref"`
+}
+
+// transfer moves spendable credit user->user. The wallet is authoritative for the
+// atomic move; on success we append a signed entry to the replicated P2P ledger
+// (ADR-0005) so the transfer is proof-logged and metered like a payment. There is no
+// Moka settle — nothing leaves custody. A ledger append failure does not unwind the
+// committed transfer (same rule as settle) — log and continue.
+func (a *API) transfer(w http.ResponseWriter, r *http.Request) {
+	var req transferRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	resp, err := a.wallet.Transfer(r.Context(), &walletv1.TransferRequest{
+		FromUserId:  req.FromUserID,
+		ToUserId:    req.ToUserID,
+		AmountMinor: req.AmountMinor,
+		Ref:         req.Ref,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	var ledgerHash string
+	entry, lerr := a.ledger.AppendPayment(
+		req.FromUserID, req.AmountMinor, []string{"transfer→" + req.ToUserID}, "", req.Ref)
+	if lerr != nil {
+		log.Printf("gateway: ledger append failed for transfer %s: %v", req.Ref, lerr)
+	} else {
+		ledgerHash = base64.StdEncoding.EncodeToString(entry.Hash)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"from_remaining_minor": resp.GetFromRemainingMinor(),
+		"to_available_minor":   resp.GetToAvailableMinor(),
+		"from_trx_code":        resp.GetFromTrxCode(),
+		"to_trx_code":          resp.GetToTrxCode(),
+		"ledger_hash":          ledgerHash,
 	})
 }
 
@@ -666,11 +715,15 @@ func writeJSON(w http.ResponseWriter, code int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// writeGRPCError maps a gRPC status onto an HTTP status + JSON error body.
+// writeGRPCError maps a gRPC status onto an HTTP status + JSON error body. Client
+// errors (4xx) carry their message through — those are deliberate, safe strings. Server
+// errors (5xx) are logged in full but returned generically, so internal details (e.g.
+// raw driver messages / SQLSTATE) never leak to the caller.
 func writeGRPCError(w http.ResponseWriter, err error) {
 	st, ok := status.FromError(err)
 	if !ok {
-		writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		log.Printf("gateway: non-status error: %v", err)
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "upstream error"})
 		return
 	}
 	code := http.StatusInternalServerError
@@ -679,10 +732,19 @@ func writeGRPCError(w http.ResponseWriter, err error) {
 		code = http.StatusBadRequest
 	case codes.NotFound:
 		code = http.StatusNotFound
+	case codes.FailedPrecondition:
+		code = http.StatusPreconditionFailed
+	case codes.AlreadyExists:
+		code = http.StatusConflict
 	case codes.Unavailable:
 		code = http.StatusServiceUnavailable
 	case codes.DeadlineExceeded:
 		code = http.StatusGatewayTimeout
+	}
+	if code >= 500 {
+		log.Printf("gateway: %s: %s", st.Code(), st.Message())
+		writeJSON(w, code, map[string]any{"error": "internal error"})
+		return
 	}
 	writeJSON(w, code, map[string]any{"error": st.Message()})
 }
