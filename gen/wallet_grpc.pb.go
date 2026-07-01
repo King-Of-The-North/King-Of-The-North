@@ -24,6 +24,7 @@ const (
 	WalletService_ValidateTransaction_FullMethodName = "/kotn.wallet.v1.WalletService/ValidateTransaction"
 	WalletService_CreditNodeReward_FullMethodName    = "/kotn.wallet.v1.WalletService/CreditNodeReward"
 	WalletService_Transfer_FullMethodName            = "/kotn.wallet.v1.WalletService/Transfer"
+	WalletService_ListTransactions_FullMethodName    = "/kotn.wallet.v1.WalletService/ListTransactions"
 )
 
 // WalletServiceClient is the client API for WalletService service.
@@ -44,6 +45,8 @@ type WalletServiceClient interface {
 	CreditNodeReward(ctx context.Context, in *CreditNodeRewardRequest, opts ...grpc.CallOption) (*CreditNodeRewardResponse, error)
 	// Gateway -> Wallet: move spendable credit from one user to another (atomic).
 	Transfer(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error)
+	// Gateway -> Wallet: list a user's transactions, newest first (receipts/history).
+	ListTransactions(ctx context.Context, in *ListTransactionsRequest, opts ...grpc.CallOption) (*ListTransactionsResponse, error)
 }
 
 type walletServiceClient struct {
@@ -104,6 +107,16 @@ func (c *walletServiceClient) Transfer(ctx context.Context, in *TransferRequest,
 	return out, nil
 }
 
+func (c *walletServiceClient) ListTransactions(ctx context.Context, in *ListTransactionsRequest, opts ...grpc.CallOption) (*ListTransactionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTransactionsResponse)
+	err := c.cc.Invoke(ctx, WalletService_ListTransactions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WalletServiceServer is the server API for WalletService service.
 // All implementations should embed UnimplementedWalletServiceServer
 // for forward compatibility.
@@ -122,6 +135,8 @@ type WalletServiceServer interface {
 	CreditNodeReward(context.Context, *CreditNodeRewardRequest) (*CreditNodeRewardResponse, error)
 	// Gateway -> Wallet: move spendable credit from one user to another (atomic).
 	Transfer(context.Context, *TransferRequest) (*TransferResponse, error)
+	// Gateway -> Wallet: list a user's transactions, newest first (receipts/history).
+	ListTransactions(context.Context, *ListTransactionsRequest) (*ListTransactionsResponse, error)
 }
 
 // UnimplementedWalletServiceServer should be embedded to have
@@ -145,6 +160,9 @@ func (UnimplementedWalletServiceServer) CreditNodeReward(context.Context, *Credi
 }
 func (UnimplementedWalletServiceServer) Transfer(context.Context, *TransferRequest) (*TransferResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Transfer not implemented")
+}
+func (UnimplementedWalletServiceServer) ListTransactions(context.Context, *ListTransactionsRequest) (*ListTransactionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTransactions not implemented")
 }
 func (UnimplementedWalletServiceServer) testEmbeddedByValue() {}
 
@@ -256,6 +274,24 @@ func _WalletService_Transfer_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WalletService_ListTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTransactionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).ListTransactions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_ListTransactions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).ListTransactions(ctx, req.(*ListTransactionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WalletService_ServiceDesc is the grpc.ServiceDesc for WalletService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -282,6 +318,10 @@ var WalletService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Transfer",
 			Handler:    _WalletService_Transfer_Handler,
+		},
+		{
+			MethodName: "ListTransactions",
+			Handler:    _WalletService_ListTransactions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

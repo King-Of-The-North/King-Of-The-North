@@ -275,6 +275,66 @@ VALUES (gen_random_uuid(), $1, $2, $3, 2, 1, now()),
 	}, nil
 }
 
+// Transaction is a ledger row as seen by the app (receipts/history). Amounts are
+// kuruş. MokaPaymentID is empty until the (mock) settle records it.
+type Transaction struct {
+	ID            string
+	OtherTrxCode  string
+	MokaPaymentID string
+	AmountMinor   int64
+	PaymentStatus int32
+	TrxStatus     int32
+	CreatedAt     time.Time
+}
+
+// defaultTxLimit caps an unbounded history request so a client can't ask for the
+// whole table. maxTxLimit is the hard ceiling.
+const (
+	defaultTxLimit = 50
+	maxTxLimit     = 200
+)
+
+// ListTransactions returns a user's transactions newest-first, capped at limit
+// (0 → defaultTxLimit, over maxTxLimit → maxTxLimit). A malformed (non-UUID) user id
+// reads as an empty history rather than a driver error.
+func (s *Store) ListTransactions(ctx context.Context, userID string, limit uint32) ([]Transaction, error) {
+	n := int(limit)
+	if n <= 0 {
+		n = defaultTxLimit
+	}
+	if n > maxTxLimit {
+		n = maxTxLimit
+	}
+
+	const q = `
+SELECT id, other_trx_code, COALESCE(moka_payment_id, ''), amount,
+       payment_status, trx_status, created_at
+FROM transactions WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`
+	rows, err := s.pool.Query(ctx, q, userID, n)
+	if err != nil {
+		return nil, fmt.Errorf("store: list transactions: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]Transaction, 0, n)
+	for rows.Next() {
+		var t Transaction
+		if err := rows.Scan(&t.ID, &t.OtherTrxCode, &t.MokaPaymentID, &t.AmountMinor,
+			&t.PaymentStatus, &t.TrxStatus, &t.CreatedAt); err != nil {
+			return nil, fmt.Errorf("store: list transactions scan: %w", err)
+		}
+		out = append(out, t)
+	}
+	if err := rows.Err(); err != nil {
+		// A malformed user id (non-UUID) surfaces here; treat as empty history.
+		if isInvalidText(err) {
+			return []Transaction{}, nil
+		}
+		return nil, fmt.Errorf("store: list transactions rows: %w", err)
+	}
+	return out, nil
+}
+
 // CreditNodeReward tops up the user's spendable credit for running a P2P node
 // (DePIN, ADR-0008). The reward is credited to the authoritative Postgres ledger —
 // never minted on the phone — as a normal entry, raising both credit_limit and

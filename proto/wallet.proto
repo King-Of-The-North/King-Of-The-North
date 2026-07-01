@@ -18,6 +18,8 @@ service WalletService {
   rpc CreditNodeReward(CreditNodeRewardRequest) returns (CreditNodeRewardResponse);
   // Gateway -> Wallet: move spendable credit from one user to another (atomic).
   rpc Transfer(TransferRequest) returns (TransferResponse);
+  // Gateway -> Wallet: list a user's transactions, newest first (receipts/history).
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
 }
 
 message CalculateLimitRequest {
@@ -93,4 +95,23 @@ message TransferResponse {
   int64 to_available_minor = 2; // receiver available_credit after
   string from_trx_code = 3; // audit code, "<ref>:out"
   string to_trx_code = 4; // audit code, "<ref>:in"
+}
+
+message ListTransactionsRequest {
+  string user_id = 1;
+  uint32 limit = 2; // 0 = server default
+}
+
+message Transaction {
+  string id = 1;
+  string other_trx_code = 2;
+  string moka_payment_id = 3;
+  int64 amount_minor = 4;
+  int32 payment_status = 5; // 0=Standby 1=Pre-Provision 2=Payment 3=Cancel 4=Full-Refund
+  int32 trx_status = 6; // 0=Standby 1=Successful 2=Failed
+  string created_at = 7; // RFC3339
+}
+
+message ListTransactionsResponse {
+  repeated Transaction transactions = 1;
 }

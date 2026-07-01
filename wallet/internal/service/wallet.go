@@ -218,6 +218,31 @@ func (w *Wallet) Transfer(ctx context.Context, req *walletv1.TransferRequest) (*
 	}, nil
 }
 
+// ListTransactions returns a user's transactions newest-first for the app's
+// receipt/history views. Read-only; the store caps the limit.
+func (w *Wallet) ListTransactions(ctx context.Context, req *walletv1.ListTransactionsRequest) (*walletv1.ListTransactionsResponse, error) {
+	if req.GetUserId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id required")
+	}
+	txs, err := w.store.ListTransactions(ctx, req.GetUserId(), req.GetLimit())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list transactions: %v", err)
+	}
+	out := make([]*walletv1.Transaction, 0, len(txs))
+	for _, t := range txs {
+		out = append(out, &walletv1.Transaction{
+			Id:            t.ID,
+			OtherTrxCode:  t.OtherTrxCode,
+			MokaPaymentId: t.MokaPaymentID,
+			AmountMinor:   t.AmountMinor,
+			PaymentStatus: t.PaymentStatus,
+			TrxStatus:     t.TrxStatus,
+			CreatedAt:     t.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	return &walletv1.ListTransactionsResponse{Transactions: out}, nil
+}
+
 // cartTotal sums line items in minor units, guarding against empty carts and overflow.
 func cartTotal(items []*walletv1.CartItem) (int64, error) {
 	if len(items) == 0 {

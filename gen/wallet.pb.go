@@ -746,6 +746,194 @@ func (x *TransferResponse) GetToTrxCode() string {
 	return ""
 }
 
+type ListTransactionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Limit         uint32                 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"` // 0 = server default
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTransactionsRequest) Reset() {
+	*x = ListTransactionsRequest{}
+	mi := &file_wallet_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTransactionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTransactionsRequest) ProtoMessage() {}
+
+func (x *ListTransactionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTransactionsRequest.ProtoReflect.Descriptor instead.
+func (*ListTransactionsRequest) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListTransactionsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListTransactionsRequest) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type Transaction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	OtherTrxCode  string                 `protobuf:"bytes,2,opt,name=other_trx_code,json=otherTrxCode,proto3" json:"other_trx_code,omitempty"`
+	MokaPaymentId string                 `protobuf:"bytes,3,opt,name=moka_payment_id,json=mokaPaymentId,proto3" json:"moka_payment_id,omitempty"`
+	AmountMinor   int64                  `protobuf:"varint,4,opt,name=amount_minor,json=amountMinor,proto3" json:"amount_minor,omitempty"`
+	PaymentStatus int32                  `protobuf:"varint,5,opt,name=payment_status,json=paymentStatus,proto3" json:"payment_status,omitempty"` // 0=Standby 1=Pre-Provision 2=Payment 3=Cancel 4=Full-Refund
+	TrxStatus     int32                  `protobuf:"varint,6,opt,name=trx_status,json=trxStatus,proto3" json:"trx_status,omitempty"`             // 0=Standby 1=Successful 2=Failed
+	CreatedAt     string                 `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`              // RFC3339
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Transaction) Reset() {
+	*x = Transaction{}
+	mi := &file_wallet_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Transaction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Transaction) ProtoMessage() {}
+
+func (x *Transaction) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Transaction.ProtoReflect.Descriptor instead.
+func (*Transaction) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *Transaction) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Transaction) GetOtherTrxCode() string {
+	if x != nil {
+		return x.OtherTrxCode
+	}
+	return ""
+}
+
+func (x *Transaction) GetMokaPaymentId() string {
+	if x != nil {
+		return x.MokaPaymentId
+	}
+	return ""
+}
+
+func (x *Transaction) GetAmountMinor() int64 {
+	if x != nil {
+		return x.AmountMinor
+	}
+	return 0
+}
+
+func (x *Transaction) GetPaymentStatus() int32 {
+	if x != nil {
+		return x.PaymentStatus
+	}
+	return 0
+}
+
+func (x *Transaction) GetTrxStatus() int32 {
+	if x != nil {
+		return x.TrxStatus
+	}
+	return 0
+}
+
+func (x *Transaction) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type ListTransactionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Transactions  []*Transaction         `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTransactionsResponse) Reset() {
+	*x = ListTransactionsResponse{}
+	mi := &file_wallet_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTransactionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTransactionsResponse) ProtoMessage() {}
+
+func (x *ListTransactionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wallet_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTransactionsResponse.ProtoReflect.Descriptor instead.
+func (*ListTransactionsResponse) Descriptor() ([]byte, []int) {
+	return file_wallet_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListTransactionsResponse) GetTransactions() []*Transaction {
+	if x != nil {
+		return x.Transactions
+	}
+	return nil
+}
+
 var File_wallet_proto protoreflect.FileDescriptor
 
 const file_wallet_proto_rawDesc = "" +
@@ -806,14 +994,30 @@ const file_wallet_proto_rawDesc = "" +
 	"\x14from_remaining_minor\x18\x01 \x01(\x03R\x12fromRemainingMinor\x12,\n" +
 	"\x12to_available_minor\x18\x02 \x01(\x03R\x10toAvailableMinor\x12\"\n" +
 	"\rfrom_trx_code\x18\x03 \x01(\tR\vfromTrxCode\x12\x1e\n" +
-	"\vto_trx_code\x18\x04 \x01(\tR\ttoTrxCode2\xe0\x03\n" +
+	"\vto_trx_code\x18\x04 \x01(\tR\ttoTrxCode\"H\n" +
+	"\x17ListTransactionsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\rR\x05limit\"\xf3\x01\n" +
+	"\vTransaction\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12$\n" +
+	"\x0eother_trx_code\x18\x02 \x01(\tR\fotherTrxCode\x12&\n" +
+	"\x0fmoka_payment_id\x18\x03 \x01(\tR\rmokaPaymentId\x12!\n" +
+	"\famount_minor\x18\x04 \x01(\x03R\vamountMinor\x12%\n" +
+	"\x0epayment_status\x18\x05 \x01(\x05R\rpaymentStatus\x12\x1d\n" +
+	"\n" +
+	"trx_status\x18\x06 \x01(\x05R\ttrxStatus\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\a \x01(\tR\tcreatedAt\"[\n" +
+	"\x18ListTransactionsResponse\x12?\n" +
+	"\ftransactions\x18\x01 \x03(\v2\x1b.kotn.wallet.v1.TransactionR\ftransactions2\xc7\x04\n" +
 	"\rWalletService\x12_\n" +
 	"\x0eCalculateLimit\x12%.kotn.wallet.v1.CalculateLimitRequest\x1a&.kotn.wallet.v1.CalculateLimitResponse\x12H\n" +
 	"\n" +
 	"GetAccount\x12!.kotn.wallet.v1.GetAccountRequest\x1a\x17.kotn.wallet.v1.Account\x12n\n" +
 	"\x13ValidateTransaction\x12*.kotn.wallet.v1.ValidateTransactionRequest\x1a+.kotn.wallet.v1.ValidateTransactionResponse\x12e\n" +
 	"\x10CreditNodeReward\x12'.kotn.wallet.v1.CreditNodeRewardRequest\x1a(.kotn.wallet.v1.CreditNodeRewardResponse\x12M\n" +
-	"\bTransfer\x12\x1f.kotn.wallet.v1.TransferRequest\x1a .kotn.wallet.v1.TransferResponseB=Z;github.com/king-of-the-north/king-of-the-north/gen;walletv1b\x06proto3"
+	"\bTransfer\x12\x1f.kotn.wallet.v1.TransferRequest\x1a .kotn.wallet.v1.TransferResponse\x12e\n" +
+	"\x10ListTransactions\x12'.kotn.wallet.v1.ListTransactionsRequest\x1a(.kotn.wallet.v1.ListTransactionsResponseB=Z;github.com/king-of-the-north/king-of-the-north/gen;walletv1b\x06proto3"
 
 var (
 	file_wallet_proto_rawDescOnce sync.Once
@@ -827,7 +1031,7 @@ func file_wallet_proto_rawDescGZIP() []byte {
 	return file_wallet_proto_rawDescData
 }
 
-var file_wallet_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_wallet_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_wallet_proto_goTypes = []any{
 	(*CalculateLimitRequest)(nil),       // 0: kotn.wallet.v1.CalculateLimitRequest
 	(*CalculateLimitResponse)(nil),      // 1: kotn.wallet.v1.CalculateLimitResponse
@@ -840,24 +1044,30 @@ var file_wallet_proto_goTypes = []any{
 	(*CreditNodeRewardResponse)(nil),    // 8: kotn.wallet.v1.CreditNodeRewardResponse
 	(*TransferRequest)(nil),             // 9: kotn.wallet.v1.TransferRequest
 	(*TransferResponse)(nil),            // 10: kotn.wallet.v1.TransferResponse
+	(*ListTransactionsRequest)(nil),     // 11: kotn.wallet.v1.ListTransactionsRequest
+	(*Transaction)(nil),                 // 12: kotn.wallet.v1.Transaction
+	(*ListTransactionsResponse)(nil),    // 13: kotn.wallet.v1.ListTransactionsResponse
 }
 var file_wallet_proto_depIdxs = []int32{
 	4,  // 0: kotn.wallet.v1.ValidateTransactionRequest.items:type_name -> kotn.wallet.v1.CartItem
-	0,  // 1: kotn.wallet.v1.WalletService.CalculateLimit:input_type -> kotn.wallet.v1.CalculateLimitRequest
-	2,  // 2: kotn.wallet.v1.WalletService.GetAccount:input_type -> kotn.wallet.v1.GetAccountRequest
-	5,  // 3: kotn.wallet.v1.WalletService.ValidateTransaction:input_type -> kotn.wallet.v1.ValidateTransactionRequest
-	7,  // 4: kotn.wallet.v1.WalletService.CreditNodeReward:input_type -> kotn.wallet.v1.CreditNodeRewardRequest
-	9,  // 5: kotn.wallet.v1.WalletService.Transfer:input_type -> kotn.wallet.v1.TransferRequest
-	1,  // 6: kotn.wallet.v1.WalletService.CalculateLimit:output_type -> kotn.wallet.v1.CalculateLimitResponse
-	3,  // 7: kotn.wallet.v1.WalletService.GetAccount:output_type -> kotn.wallet.v1.Account
-	6,  // 8: kotn.wallet.v1.WalletService.ValidateTransaction:output_type -> kotn.wallet.v1.ValidateTransactionResponse
-	8,  // 9: kotn.wallet.v1.WalletService.CreditNodeReward:output_type -> kotn.wallet.v1.CreditNodeRewardResponse
-	10, // 10: kotn.wallet.v1.WalletService.Transfer:output_type -> kotn.wallet.v1.TransferResponse
-	6,  // [6:11] is the sub-list for method output_type
-	1,  // [1:6] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	12, // 1: kotn.wallet.v1.ListTransactionsResponse.transactions:type_name -> kotn.wallet.v1.Transaction
+	0,  // 2: kotn.wallet.v1.WalletService.CalculateLimit:input_type -> kotn.wallet.v1.CalculateLimitRequest
+	2,  // 3: kotn.wallet.v1.WalletService.GetAccount:input_type -> kotn.wallet.v1.GetAccountRequest
+	5,  // 4: kotn.wallet.v1.WalletService.ValidateTransaction:input_type -> kotn.wallet.v1.ValidateTransactionRequest
+	7,  // 5: kotn.wallet.v1.WalletService.CreditNodeReward:input_type -> kotn.wallet.v1.CreditNodeRewardRequest
+	9,  // 6: kotn.wallet.v1.WalletService.Transfer:input_type -> kotn.wallet.v1.TransferRequest
+	11, // 7: kotn.wallet.v1.WalletService.ListTransactions:input_type -> kotn.wallet.v1.ListTransactionsRequest
+	1,  // 8: kotn.wallet.v1.WalletService.CalculateLimit:output_type -> kotn.wallet.v1.CalculateLimitResponse
+	3,  // 9: kotn.wallet.v1.WalletService.GetAccount:output_type -> kotn.wallet.v1.Account
+	6,  // 10: kotn.wallet.v1.WalletService.ValidateTransaction:output_type -> kotn.wallet.v1.ValidateTransactionResponse
+	8,  // 11: kotn.wallet.v1.WalletService.CreditNodeReward:output_type -> kotn.wallet.v1.CreditNodeRewardResponse
+	10, // 12: kotn.wallet.v1.WalletService.Transfer:output_type -> kotn.wallet.v1.TransferResponse
+	13, // 13: kotn.wallet.v1.WalletService.ListTransactions:output_type -> kotn.wallet.v1.ListTransactionsResponse
+	8,  // [8:14] is the sub-list for method output_type
+	2,  // [2:8] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_wallet_proto_init() }
@@ -871,7 +1081,7 @@ func file_wallet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wallet_proto_rawDesc), len(file_wallet_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

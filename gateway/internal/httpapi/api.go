@@ -75,6 +75,7 @@ func New(wallet walletv1.WalletServiceClient, ledger Ledger, store *charges.Stor
 func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/deposit", a.deposit)
 	mux.HandleFunc("GET /v1/accounts/{id}", a.account)
+	mux.HandleFunc("GET /v1/accounts/{id}/transactions", a.accountTransactions)
 	mux.HandleFunc("POST /v1/pay", a.pay)
 	mux.HandleFunc("POST /v1/transfer", a.transfer)
 	mux.HandleFunc("POST /v1/node-reward", a.nodeReward)
@@ -85,6 +86,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/ledger/nodes/{id}/kill", a.ledgerKill)
 	mux.HandleFunc("POST /v1/ledger/replicas/add", a.ledgerAddReplica)
 	mux.HandleFunc("GET /v1/depin/stats", a.depinStats)
+	mux.HandleFunc("GET /v1/depin/earnings/{user}", a.depinEarnings)
 	mux.HandleFunc("POST /v1/depin/settle", a.depinSettle)
 	// Online POS (e-commerce charges, ADR-0014)
 	mux.HandleFunc("GET /v1/merchants", a.merchantsList)
@@ -167,6 +169,41 @@ func (a *API) account(w http.ResponseWriter, r *http.Request) {
 		"lockup_end_date":        resp.GetLockupEndDate(),
 		"pool_type":              resp.GetPoolType(),
 	})
+}
+
+// --- account transactions -> ListTransactions ---
+
+// accountTransactions returns a user's transactions newest-first for the app's
+// receipt/history views. Optional ?limit=N (store caps it).
+func (a *API) accountTransactions(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var limit uint32
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 32); err == nil {
+			limit = uint32(n)
+		}
+	}
+	resp, err := a.wallet.ListTransactions(r.Context(), &walletv1.ListTransactionsRequest{
+		UserId: id,
+		Limit:  limit,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+	txs := make([]map[string]any, 0, len(resp.GetTransactions()))
+	for _, t := range resp.GetTransactions() {
+		txs = append(txs, map[string]any{
+			"id":              t.GetId(),
+			"other_trx_code":  t.GetOtherTrxCode(),
+			"moka_payment_id": t.GetMokaPaymentId(),
+			"amount_minor":    t.GetAmountMinor(),
+			"payment_status":  t.GetPaymentStatus(),
+			"trx_status":      t.GetTrxStatus(),
+			"created_at":      t.GetCreatedAt(),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"transactions": txs})
 }
 
 // --- pay -> ValidateTransaction ---
@@ -409,6 +446,40 @@ func (a *API) depinStats(w http.ResponseWriter, _ *http.Request) {
 		"pending_reward_minor":       pendingReward,
 		"total_rewarded_minor":       totalRewarded,
 		"total_cloud_avoided_minor":  totalAvoided,
+	})
+}
+
+// depinEarnings is the per-user view for the app's node/earnings panel: the nodes this
+// user runs, entries replicated, pending (unsettled) reward, and lifetime reward. The
+// settled reward already lands in the user's wallet balance (CreditNodeReward), so this
+// reports the metering side — what the phone has earned by being a server.
+func (a *API) depinEarnings(w http.ResponseWriter, r *http.Request) {
+	user := r.PathValue("user")
+	meters := a.ledger.Meter()
+	nodes := make([]map[string]any, 0)
+	var pendingEntries, lifetimeEntries int
+	for _, m := range meters {
+		if m.Owner != user {
+			continue
+		}
+		pendingEntries += m.Pending
+		lifetimeEntries += m.Lifetime
+		nodes = append(nodes, map[string]any{
+			"node_id":          m.ID,
+			"pending_entries":  m.Pending,
+			"lifetime_entries": m.Lifetime,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user_id":                  user,
+		"nodes":                    nodes,
+		"node_count":               len(nodes),
+		"pending_entries":          pendingEntries,
+		"lifetime_entries":         lifetimeEntries,
+		"pending_reward_minor":     int64(pendingEntries) * a.depin.RewardPerEntryMinor,
+		"lifetime_reward_minor":    int64(lifetimeEntries) * a.depin.RewardPerEntryMinor,
+		"cloud_cost_avoided_minor": int64(lifetimeEntries) * a.depin.CloudCostPerEntryMinor,
+		"reward_per_entry_minor":   a.depin.RewardPerEntryMinor,
 	})
 }
 

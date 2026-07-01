@@ -257,6 +257,46 @@ func TestConcurrentTransferNoOverdraw(t *testing.T) {
 	}
 }
 
+func TestListTransactions(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	uid := uuid.NewString()
+	_ = s.Deposit(ctx, newAccount(uid, 100000))
+
+	// A spend and a node reward → two rows, newest first.
+	if _, err := s.Deduct(ctx, uid, 3000, "spend-1"); err != nil {
+		t.Fatalf("deduct: %v", err)
+	}
+	if _, err := s.CreditNodeReward(ctx, uid, 250, "reward-1"); err != nil {
+		t.Fatalf("reward: %v", err)
+	}
+
+	txs, err := s.ListTransactions(ctx, uid, 0)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(txs) != 2 {
+		t.Fatalf("want 2 transactions, got %d", len(txs))
+	}
+	// Newest first: the reward was written after the spend.
+	if txs[0].OtherTrxCode != "reward-1" || txs[1].OtherTrxCode != "spend-1" {
+		t.Fatalf("wrong order: %s then %s", txs[0].OtherTrxCode, txs[1].OtherTrxCode)
+	}
+	if txs[1].AmountMinor != 3000 {
+		t.Fatalf("want spend amount 3000, got %d", txs[1].AmountMinor)
+	}
+
+	// limit is honored.
+	one, _ := s.ListTransactions(ctx, uid, 1)
+	if len(one) != 1 {
+		t.Fatalf("limit=1 returned %d", len(one))
+	}
+	// Malformed id → empty, not an error.
+	if got, err := s.ListTransactions(ctx, "not-a-user", 0); err != nil || len(got) != 0 {
+		t.Fatalf("malformed id: want empty/no-error, got %d/%v", len(got), err)
+	}
+}
+
 // TestGetAccountMalformedID: a user_id that isn't a valid UUID must read as
 // "not found", not surface a raw driver error (which would 500 + leak SQLSTATE).
 func TestGetAccountMalformedID(t *testing.T) {
